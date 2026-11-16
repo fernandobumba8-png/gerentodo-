@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="pt-AO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Clientes</title>
+<link rel="stylesheet" href="estilo.css">
+<script src="filtros.js" defer></script>
+<script src="preferencias.js"></script>
+<script src="modais.js"></script>
+<script src="escopo.js"></script>
+<style>
+ /* Botão Menu flutuante no canto superior direito */
+ .menuw.fab{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:14px;z-index:40}
+ .fab>.btn{border-radius:999px;padding:10px 18px;box-shadow:0 6px 18px rgba(0,0,0,.28)}
+ main{padding-top:64px}
+</style>
+</head>
+<body class="pg-clientes">
+<div class="menuw fab">
+    <button class="btn p" onclick="toggleMenu(event)" aria-haspopup="true">☰</button>
+    <div class="menu" id="menu">
+      <button onclick="mn('openForm()')">Cadastrar cliente</button>
+      <button onclick="mn('openDoc()')">Registar documento</button>
+      <button onclick="mn('openPag()')">Gerir pagamentos</button>
+      <button onclick="mn('openRel()')">Gerir relatório</button>
+      <hr>
+      <button onclick="mn('exportCSV()')">Exportar CSV</button>
+    </div>
+  </div>
+<main>
+  <div class="filters">
+    <input id="fq" placeholder="Pesquisar nome, NIF/BI, telefone, email, código" oninput="render()">
+    <select id="ft" onchange="render()"><option value="">Tipo</option><option>Particular</option><option>Empresa</option></select>
+    <select id="fk" onchange="render()"></select><select id="fp" onchange="render()"></select>
+    <select id="fg" onchange="render()"><option value="">Condições de pagamento</option><option>Pronto pagamento</option><option>15 dias</option><option>30 dias</option><option>60 dias</option></select>
+    <select id="fe" onchange="render()"><option value="">Estado</option><option>Ativo</option><option>Inativo</option></select>
+    <select id="fd" onchange="render()"><option value="">Dívida</option><option value="1">Com dívida</option><option value="0">Sem dívida</option><option value="2">Dívida vencida</option></select>
+    <button class="btn" onclick="clearF()">Limpar filtros</button>
+  </div>
+  <section class="cards" id="cards"></section>
+  <div class="bar">
+    <span class="hint" id="count"></span>
+    <span style="display:flex;gap:8px;flex-wrap:wrap">
+      <select id="so" onchange="render()"><option value="rec">Atividade recente</option><option value="n">Nome (A-Z)</option><option value="dv">Dívida (maior)</option><option value="tc">Total comprado (maior)</option><option value="id">ID</option></select>
+      <button class="btn" id="btnAll" onclick="showAll=!showAll;render()"></button>
+    </span>
+  </div>
+  <div id="list"></div>
+</main>
+
+<div class="ov sb" id="mForm"><div class="md">
+  <button class="x" onclick="cancelForm()" aria-label="Fechar">×</button>
+  <h2 id="fT">Cadastrar cliente</h2>
+  <div class="g2"><div><label>Tipo</label><select id="tp" onchange="tpCh()"><option>Particular</option><option>Empresa</option></select></div><div><label>Categoria</label><input id="cat" list="dlk"><datalist id="dlk"></datalist></div></div>
+  <label>Nome / Razão social *</label><input id="n"><div class="hint" id="nH"></div>
+  <div class="g2"><div><label id="nifL">NIF / BI</label><input id="nif"></div><div><label>Pessoa de contacto (empresas)</label><input id="pc"></div></div>
+  <label>Telefone * (vários, separados por vírgula)</label><input id="tel">
+  <div class="g2"><div><label>WhatsApp</label><input id="wa"></div><div><label>Email</label><input id="em" type="email"></div></div>
+  <div class="g2"><div><label>Província</label><input id="pv"></div><div><label>Município</label><input id="mu"></div></div>
+  <div class="g2"><div><label>Bairro</label><input id="bi"></div><div><label>Rua</label><input id="ru"></div></div>
+  <div class="g2"><div><label>Condições de pagamento</label><select id="cp"><option>Pronto pagamento</option><option>15 dias</option><option>30 dias</option><option>60 dias</option></select></div><div><label>Desconto habitual (%)</label><input id="dsc" type="number" min="0" max="100" step="0.01"></div></div>
+  <label>Fotografia / logótipo</label><input type="file" accept="image/*" onchange="loadImg(this)"><img id="imp" style="max-width:80px;margin-top:6px;border-radius:8px;display:none" alt="">
+  <label>Observações</label><textarea id="ob" rows="2" style="width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--sf)"></textarea>
+  <div class="acts"><button class="btn" onclick="cancelForm()">Cancelar</button><button class="btn p" onclick="saveForm()">Salvar</button></div>
+</div></div>
+
+<div class="ov" id="mDoc"><div class="md">
+  <button class="x" onclick="closeM('mDoc')" aria-label="Fechar">×</button>
+  <h2>Registar documento</h2>
+  <div><label>Cliente *</label><input id="dc" placeholder="Pesquisar cliente"></div>
+  <div class="g2"><div><label>Nº do documento *</label><input id="dn"></div><div><label>Valor (Kz) *</label><input id="dv" type="number" min="0" step="0.01"></div></div>
+  <div class="g2"><div><label>Data</label><input id="dd" type="date"></div><div><label>Vencimento (auto pelas condições)</label><input id="dx" type="date"></div></div>
+  <p class="hint">Registo manual. Para emitir a fatura use o Faturacao.html.</p>
+  <div class="acts"><button class="btn" onclick="closeM('mDoc')">Cancelar</button><button class="btn p" onclick="saveDoc()">Registar</button></div>
+</div></div>
+
+<div class="ov" id="mPag"><div class="md">
+  <button class="x" onclick="closeM('mPag')" aria-label="Fechar">×</button>
+  <h2>Gerir pagamentos</h2>
+  <div><label>Cliente (digite para pesquisar)</label><input id="pq" placeholder="Nome, NIF ou código"></div>
+  <div class="hint" id="pD"></div>
+  <div class="g2"><div><label>Valor recebido (Kz) *</label><input id="pvlr" type="number" min="0" step="0.01"></div><div><label>Forma de pagamento</label><select id="pf"><option>Numerário</option><option>Transferência</option><option>TPA</option><option>Multicaixa Express</option></select></div></div>
+  <div class="g2"><div><label>Data</label><input id="pd" type="date"></div><div><label>Nº do recibo</label><input id="pr"></div></div>
+  <div class="acts"><button class="btn" onclick="closeM('mPag')">Cancelar</button><button class="btn p" onclick="regPag()">Registar</button></div>
+</div></div>
+
+<div class="ov" id="mRel"><div class="md">
+  <button class="x" onclick="closeM('mRel')" aria-label="Fechar">×</button>
+  <h2>Gerir relatório</h2>
+  <div class="g2"><div><label>Cliente</label><select id="rc"></select></div><div><label>Tipo</label><select id="rt"><option value="">Todos</option><option>Particular</option><option>Empresa</option></select></div></div>
+  <div class="g2"><div><label>Categoria</label><select id="rk"></select></div><div><label>Província</label><select id="rp"></select></div></div>
+  <div class="g2"><div><label>Estado</label><select id="re"><option value="">Todos</option><option>Ativo</option><option>Inativo</option></select></div><div><label>Dívida</label><select id="rd"><option value="">Todos</option><option value="1">Com dívida</option><option value="0">Sem dívida</option></select></div></div>
+  <div class="g2"><div><label>Data inicial</label><input id="r1" type="date"></div><div><label>Data final</label><input id="r2" type="date"></div></div>
+  <p class="hint" id="rN"></p>
+  <div class="acts"><button class="btn d" onclick="descartarRel()">Descartar</button><button class="btn" onclick="outroFiltro()">Outro filtro</button><button class="btn p" onclick="finalizarRel()">Finalizar (PDF)</button></div>
+  <p class="hint">Abre a janela de impressão: escolha “Guardar como PDF” como destino.</p>
+</div></div>
+<div class="ov" id="mInfo"><div class="md" id="info"></div></div>
+<div id="toast"></div>
+<script>
+const $=id=>document.getElementById(id);
+const CK='clientes_v1';
+const load=()=>{const c=JSON.parse(localStorage.getItem(CK)||'null')||{c:[],pg:[],doc:[]};
+  if(!c.c.some(x=>x.final))c.c.unshift({id:c.c.reduce((m,x)=>Math.max(m,x.id),0)+1,ref:'CLI-0000',final:true,tp:'Particular',n:'Cliente final',tel:'—',cat:'Normal',cp:'Pronto pagamento',ativo:true,ts:Date.now(),pv:'',nif:''});return c};
+let C=load(),editId=null,imgData='',pSel=null,RF=[],showAll=false;
+const saveC=()=>localStorage.setItem(CK,JSON.stringify(C));
+const kz=v=>(Number(v)||0).toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2}).replace(/\u00a0/g,'.')+' Kz';
+const norm=s=>(s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const esc=s=>(s||'').toString().replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtD=d=>d?d.split('-').reverse().join('/'):'';
+const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const today=()=>ymd(new Date());
+function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',2800)}
+const openM=id=>$(id).classList.add('on'),closeM=id=>$(id).classList.remove('on');
+const info=h=>{$('info').innerHTML=h;openM('mInfo')};
+const X='<button class="x" onclick="closeM(\'mInfo\')" aria-label="Fechar">×</button>';
+const docsOf=c=>C.doc.filter(d=>d.cid===c.id&&d.estado!=='Anulado');
+const compras=c=>docsOf(c).reduce((s,d)=>s+d.valor,0);
+const saldo=c=>compras(c)-C.pg.filter(p=>p.cid===c.id).reduce((s,p)=>s+p.valor,0);
+const divida=c=>Math.max(0,saldo(c)),credito=c=>Math.max(0,-saldo(c));
+const vencida=c=>divida(c)>0&&docsOf(c).some(d=>d.venc&&d.venc<today());
+const cats=()=>[...new Set(['Normal','VIP','Revendedor',...C.c.map(c=>c.cat)].filter(Boolean))];
+const nextRef=()=>{const d=new Date(),n=C.c.filter(c=>!c.final).length+1;return'CLI-'+String(d.getFullYear()).slice(2)+String(d.getMonth()+1).padStart(2,'0')+'-'+String(n).padStart(3,'0')};
+const lastAct=c=>Math.max(c.ts||0,...C.doc.filter(d=>d.cid===c.id).map(d=>+d.id||0),...C.pg.filter(p=>p.cid===c.id).map(p=>+p.id||0));
+
+/* menu */
+function toggleMenu(e){e.stopPropagation();$('menu').classList.toggle('on')}
+function mn(code){$('menu').classList.remove('on');setTimeout(()=>new Function(code)(),0)}
+document.addEventListener('click',()=>$('menu').classList.remove('on'));
+
+/* campos de pesquisa: só se escolhe um cliente já cadastrado */
+const val=id=>$(id).dataset.v||'';
+function setPk(id,v,l){const e=$(id);e.value=l??v??'';e.dataset.v=v??''}
+function clearPk(id){setPk(id,'','')}
+function pk(id,src,o={}){
+  const inp=$(id),dd=document.createElement('div');dd.className='dd';inp.parentNode.classList.add('pk');inp.parentNode.appendChild(dd);inp.autocomplete='off';
+  const show=()=>{
+    const q=norm(inp.value);if(o.typing&&!q){dd.style.display='none';return}
+    const it=src().filter(x=>!q||norm(x.l+' '+(x.k||'')).includes(q)).slice(0,25);dd._it=it;
+    dd.innerHTML=it.map((x,i)=>`<div class="op" data-i="${i}">${esc(x.l)}${x.s?` <span class="hint">${esc(x.s)}</span>`:''}</div>`).join('')||`<div class="op mu">${esc(o.empty||'Nada encontrado')}</div>`;
+    dd.style.display='block';
+  };
+  dd.addEventListener('mousedown',e=>e.preventDefault());
+  dd.addEventListener('click',e=>{const op=e.target.closest('.op');if(!op||op.dataset.i===undefined)return;const x=dd._it[+op.dataset.i];inp.value=x.l;inp.dataset.v=x.v;dd.style.display='none';inp.classList.remove('err');o.onPick&&o.onPick(x)});
+  inp.addEventListener('input',()=>{if(inp.dataset.v){inp.dataset.v='';o.onClear&&o.onClear()}show()});
+  inp.addEventListener('focus',show);
+  inp.addEventListener('blur',()=>setTimeout(()=>{dd.style.display='none';if(!inp.dataset.v)inp.value=''},200));
+}
+const srt=a=>a.sort((x,y)=>norm(x.l).localeCompare(norm(y.l),'pt'));
+const cliSrc=(soAtivos)=>()=>srt(C.c.filter(c=>!soAtivos||c.ativo).map(c=>({v:c.id,l:c.n,s:`· ${c.ref}${divida(c)?' · dívida '+kz(divida(c)):''}`,k:(c.nif||'')+' '+(c.tel||'')+' '+c.ref})));
+pk('dc',cliSrc(true),{empty:'Nenhum cliente ativo'});
+pk('pq',cliSrc(false),{typing:true,onPick:x=>{pSel=+x.v;pInfo()},onClear:()=>{pSel=null;$('pD').textContent=''}});
+
+/* lista, filtros e cartões */
+const FIDS=['fq','ft','fk','fp','fg','fe','fd'];
+function clearF(){FIDS.forEach(i=>$(i).value='');render()}
+function filtered(){
+  const q=norm($('fq').value);
+  return C.c.filter(c=>(!q||norm([c.n,c.nif,c.tel,c.em,c.ref].join(' ')).includes(q))&&(!$('ft').value||c.tp===$('ft').value)&&(!$('fk').value||c.cat===$('fk').value)&&(!$('fp').value||c.pv===$('fp').value)&&(!$('fg').value||c.cp===$('fg').value)&&(!$('fe').value||($('fe').value==='Ativo')===c.ativo)&&(!$('fd').value||($('fd').value==='2'?vencida(c):($('fd').value==='1')===(divida(c)>0))));
+}
+function render(){
+  const f=(id,a,t)=>{const e=$(id),v=e.value;e.innerHTML=`<option value="">${t}</option>`+a.map(x=>`<option>${esc(x)}</option>`).join('');e.value=v};
+  f('fk',cats(),'Categoria');f('fp',[...new Set(C.c.map(c=>c.pv).filter(Boolean))].sort(),'Província');
+  const fl=filtered(),filtering=FIDS.some(i=>$(i).value),so=$('so').value;
+  const cmp={rec:(a,b)=>lastAct(b)-lastAct(a),n:(a,b)=>norm(a.n).localeCompare(norm(b.n),'pt'),dv:(a,b)=>divida(b)-divida(a),tc:(a,b)=>compras(b)-compras(a),id:(a,b)=>a.id-b.id}[so];
+  const r=fl.slice().sort(cmp),lim=!showAll&&!filtering,vis=lim?r.slice(0,15):r;
+  $('btnAll').textContent=showAll?'Mostrar só os 15 mais recentes':'Mostrar todos os clientes';
+  $('count').textContent=lim&&r.length>15?`A mostrar os 15 mais recentes de ${r.length} clientes`:`${vis.length} de ${C.c.length} clientes`;
+  $('list').innerHTML=vis.map(c=>{const dv=divida(c),vc=vencida(c);
+    return`<div class="it"><div class="l1">${c.im?`<img src="${c.im}" alt="">`:'<span class="ph"></span>'}<b>${esc(c.n)}</b><span class="pr ${vc?'rd':''}">${dv?'Dívida '+kz(dv):'Sem dívida'}</span><button class="btn s" onclick="acao(${c.id})">Ação</button></div>
+    <div class="l2"><span>ID <i>${c.id}</i></span><span>Ref. <i>${c.ref}</i></span><span>NIF/BI <i>${esc(c.nif)||'—'}</i></span><span>Tel. <i>${esc(c.tel)}</i></span><span>${esc(c.cat)}</span><span>Total comprado <i>${kz(compras(c))}</i></span><span class="tg ${c.ativo?'':'r'}">${c.ativo?'Ativo':'Inativo'}</span>${vc?'<span class="tg r">Dívida vencida</span>':''}</div></div>`}).join('')||'<p class="hint" style="padding:20px;text-align:center">Nenhum cliente encontrado.</p>';
+  const m=new Date(),sum=a=>({n:a.length,at:a.filter(c=>c.ativo).length,nv:a.filter(c=>{const d=new Date(c.ts);return d.getMonth()===m.getMonth()&&d.getFullYear()===m.getFullYear()&&!c.final}).length,dv:a.reduce((s,c)=>s+divida(c),0),vc:a.filter(vencida).length});
+  const A=sum(C.c),B=sum(fl),card=(v,l,t)=>`<div class="card"><b>${v}</b><span>${l}</span>${filtering?`<small>${t} no total</small>`:''}</div>`;
+  $('cards').innerHTML=card(B.n,'Total de clientes',A.n)+card(B.at,'Clientes ativos',A.at)+card(B.nv,'Novos no mês',A.nv)+card(kz(B.dv),'Total em dívida',kz(A.dv))+card(B.vc,'Com dívida vencida',A.vc);
+}
+window.addEventListener('storage',e=>{if(e.key===CK){C=load();render()}});
+
+/* cadastro */
+const FL=['tp','cat','n','nif','pc','tel','wa','em','pv','mu','bi','ru','cp','dsc','ob'];
+function tpCh(){$('nifL').textContent=$('tp').value==='Empresa'?'NIF *':'NIF / BI'}
+function loadImg(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const i=new Image();i.onload=()=>{const k=Math.min(1,200/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*k;c.height=i.height*k;c.getContext('2d').drawImage(i,0,0,c.width,c.height);imgData=c.toDataURL('image/jpeg',.7);$('imp').src=imgData;$('imp').style.display='block'};i.src=r.result};r.readAsDataURL(f)}
+function openForm(c){
+  editId=c?c.id:null;imgData=c?.im||'';$('fT').textContent=c?'Editar cliente':'Cadastrar cliente';
+  FL.forEach(k=>$(k).value=c?(c[k]??''):(k==='tp'?'Particular':k==='cat'?'Normal':k==='cp'?'Pronto pagamento':''));
+  $('dlk').innerHTML=cats().map(x=>`<option value="${esc(x)}">`).join('');$('imp').src=imgData;$('imp').style.display=imgData?'block':'none';
+  document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));$('nH').textContent='';tpCh();openM('mForm');$('n').focus();
+}
+const dirty=()=>['n','nif','tel','em'].some(i=>$(i).value);
+function cancelForm(){if(dirty()&&!editId&&!confirm('Há dados preenchidos. Descartar e fechar?'))return;closeM('mForm')}
+$('n').addEventListener('input',()=>{$('nH').textContent=C.c.some(c=>norm(c.n)===norm($('n').value)&&c.id!==editId)?'Já existe um cliente com este nome.':''});
+function saveForm(){
+  document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));
+  const bad=['n','tel'].filter(i=>!$(i).value.trim()),nif=$('nif').value.trim(),em=$('em').value.trim();
+  if($('tp').value==='Empresa'&&!nif)bad.push('nif');
+  if(nif&&C.c.some(c=>c.nif===nif&&c.id!==editId)){bad.push('nif');toast('Este NIF/BI já existe.')}
+  if(em&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em))bad.push('em');
+  if(C.c.some(c=>norm(c.n)===norm($('n').value)&&c.id!==editId))bad.push('n');
+  if(bad.length){bad.forEach(i=>$(i).classList.add('err'));if($('toast').style.display!=='block')toast('Corrija os campos destacados.');return}
+  const d={};FL.forEach(k=>d[k]=$(k).value.trim());d.dsc=+d.dsc||0;d.im=imgData;d.cat=d.cat||'Normal';
+  if(editId)Object.assign(C.c.find(c=>c.id===editId),d),toast('Cliente atualizado.');
+  else{C.c.push({id:C.c.reduce((m,c)=>Math.max(m,c.id),0)+1,ref:nextRef(),ativo:true,ts:Date.now(),...d});toast('Cliente guardado com sucesso')}
+  saveC();closeM('mForm');render();
+}
+
+/* documentos e pagamentos */
+function openDoc(id){
+  clearPk('dc');if(id){const c=C.c.find(x=>x.id===id);setPk('dc',id,c.n)}
+  $('dn').value='';$('dv').value='';$('dd').value=today();$('dx').value='';openM('mDoc');
+}
+function saveDoc(){
+  const c=C.c.find(x=>x.id==val('dc')),v=+$('dv').value,n=$('dn').value.trim();
+  if(!c)return toast('Pesquise e escolha o cliente da lista.');
+  if(!n||!(v>0))return toast('Indique o nº e o valor do documento.');
+  const dias={'15 dias':15,'30 dias':30,'60 dias':60}[c.cp]||0,d=$('dd').value||today();
+  const venc=$('dx').value||(dias?(()=>{const x=new Date(d+'T00:00:00');x.setDate(x.getDate()+dias);return ymd(x)})():d);
+  C.doc.push({id:Date.now(),cid:c.id,num:n,data:d,venc,valor:v,estado:'Emitido'});saveC();closeM('mDoc');render();toast('Documento registado.');
+}
+function pInfo(){const c=C.c.find(x=>x.id===pSel);$('pD').textContent=c?`Dívida atual: ${kz(divida(c))}`+(credito(c)?` · Crédito: ${kz(credito(c))}`:''):''}
+function openPag(id){
+  pSel=null;clearPk('pq');['pvlr','pr'].forEach(i=>$(i).value='');$('pd').value=today();$('pD').textContent='';
+  if(id){const c=C.c.find(x=>x.id===id);setPk('pq',id,c.n);pSel=id;pInfo()}
+  openM('mPag');$(id?'pvlr':'pq').focus();
+}
+function regPag(){
+  const c=C.c.find(x=>x.id===pSel),v=+$('pvlr').value;if(!c)return toast('Pesquise e escolha um cliente da lista.');if(!(v>0))return toast('Indique o valor recebido.');
+  const ant=divida(c);
+  if(v>ant&&!confirm(`O valor é maior que a dívida (${kz(ant)}). Ficar a diferença como crédito do cliente?`))return;
+  C.pg.push({id:Date.now(),cid:c.id,valor:v,forma:$('pf').value,data:$('pd').value||today(),rec:$('pr').value.trim()});saveC();closeM('mPag');render();
+  info(`${X}<h2>Pagamento registado</h2><p>${esc(c.n)}</p><p>Dívida anterior: <b>${kz(ant)}</b><br>Valor pago: <b>${kz(v)}</b><br>Dívida atual: <b>${kz(divida(c))}</b>${credito(c)?`<br>Crédito do cliente: <b>${kz(credito(c))}</b>`:''}</p><div class="acts"><button class="btn p" onclick="closeM('mInfo')">Fechar</button></div>`);
+}
+
+/* ação */
+function acao(id){
+  info(`${X}<h2>Ação</h2>
+  <button class="btn li" onclick="detalhe(${id})">Ver detalhe</button>
+  <button class="btn li" onclick="hist(${id})">Histórico de compras</button>
+  <button class="btn li" onclick="extrato(${id})">Extrato de conta</button>
+  <button class="btn li" onclick="closeM('mInfo');openPag(${id})">Registar pagamento</button>
+  <button class="btn li" onclick="closeM('mInfo');openForm(C.c.find(c=>c.id===${id}))">Editar</button>
+  <button class="btn li" onclick="contactar(${id})">Contactar</button>
+  <button class="btn li" onclick="toggle(${id})">Inativar / Ativar</button>
+  <button class="btn li d" onclick="eliminar(${id})">Eliminar</button>`);
+}
+const back=id=>`<div class="acts"><button class="btn" onclick="acao(${id})">Voltar</button></div>`;
+function detalhe(id){
+  const c=C.c.find(x=>x.id===id),ds=docsOf(c);
+  const r=[['Referência',c.ref],['Tipo',c.tp],['Categoria',c.cat],['NIF / BI',c.nif],['Contacto',c.pc],['Telefone',c.tel],['WhatsApp',c.wa],['Email',c.em],['Endereço',[c.ru,c.bi,c.mu,c.pv].filter(Boolean).join(', ')],['Pagamento',c.cp],['Desconto habitual',c.dsc?c.dsc+'%':''],['Total comprado',kz(compras(c))],['Valor médio por compra',ds.length?kz(compras(c)/ds.length):''],['Dívida',kz(divida(c))],['Observações',c.ob],['Estado',c.ativo?'Ativo':'Inativo']];
+  info(`${X}<h2>${esc(c.n)}</h2>${c.im?`<img src="${c.im}" style="max-width:90px;border-radius:8px" alt="">`:''}${r.map(([a,b])=>`<div class="hl"><span class="hint">${a}:</span> ${esc(b)||'—'}</div>`).join('')}${back(id)}`);
+}
+function hist(id,a='',b=''){
+  const c=C.c.find(x=>x.id===id),l=C.doc.filter(d=>d.cid===id&&(!a||d.data>=a)&&(!b||d.data<=b)).reverse();
+  info(`${X}<h2>Compras — ${esc(c.n)}</h2><div class="g2"><input type="date" value="${a}" onchange="hist(${id},this.value,'${b}')"><input type="date" value="${b}" onchange="hist(${id},'${a}',this.value)"></div>${l.map(d=>`<div class="hl">${fmtD(d.data)} · <b>${esc(d.num)}</b> · ${kz(d.valor)} · ${d.estado}</div>`).join('')||'<p class="hint">Sem documentos neste período.</p>'}${back(id)}`);
+}
+function extrato(id){
+  const c=C.c.find(x=>x.id===id);
+  const mv=[...docsOf(c).map(d=>({d:d.data,t:'Documento '+d.num,db:d.valor,cr:0})),...C.pg.filter(p=>p.cid===id).map(p=>({d:p.data,t:'Pagamento '+p.forma+(p.rec?' · recibo '+p.rec:''),db:0,cr:p.valor}))].sort((a,b)=>a.d.localeCompare(b.d));
+  let s=0;const rows=mv.map(m=>{s+=m.db-m.cr;return`<tr><td>${fmtD(m.d)}</td><td>${esc(m.t)}</td><td class="r">${m.db?kz(m.db):''}</td><td class="r">${m.cr?kz(m.cr):''}</td><td class="r">${kz(s)}</td></tr>`}).join('')||'<tr><td colspan="5">Sem movimentos.</td></tr>';
+  pdf('Extrato de conta — '+c.n,`<h3>${esc(c.n)} (${c.ref})</h3><table><thead><tr><th>Data</th><th>Descrição</th><th class="r">Débito</th><th class="r">Crédito</th><th class="r">Saldo</th></tr></thead><tbody>${rows}</tbody></table><h3 style="text-align:right">Saldo em dívida: ${kz(Math.max(0,s))}</h3>`);
+}
+
+function contactar(id){
+  const c=C.c.find(x=>x.id===id),t=(c.tel.split(',')[0]||'').replace(/\s/g,''),w=(c.wa||t).replace(/\D/g,''),w2=w.length===9?'244'+w:w;
+  const lem=divida(c)>0?`<a class="btn li" target="_blank" href="https://wa.me/${w2}?text=${encodeURIComponent(`Olá ${c.n}, lembramos que tem um valor em aberto de ${kz(divida(c))}. Obrigado.`)}">Lembrete de dívida por WhatsApp</a>`:'';
+  info(`${X}<h2>Contactar ${esc(c.n)}</h2><a class="btn li" href="tel:${t}">Ligar: ${esc(t)}</a><a class="btn li" target="_blank" href="https://wa.me/${w2}">WhatsApp</a>${c.em?`<a class="btn li" href="mailto:${esc(c.em)}">Email: ${esc(c.em)}</a>`:''}${lem}${back(id)}`);
+}
+function toggle(id){const c=C.c.find(x=>x.id===id);if(c.final)return toast('O cliente final não pode ser inativado.');c.ativo=!c.ativo;saveC();closeM('mInfo');render();toast(c.ativo?'Cliente ativado.':'Cliente inativado.')}
+function eliminar(id){
+  const c=C.c.find(x=>x.id===id),bl=c.final||C.doc.some(d=>d.cid===id)||divida(c)>0;
+  info(bl?`${X}<h2>Não é possível eliminar</h2><p>${c.final?'O cliente final é predefinido.':'Este cliente tem documentos ou dívida. Inative-o em vez de o apagar.'}</p><div class="acts"><button class="btn" onclick="closeM('mInfo')">Fechar</button>${c.final?'':`<button class="btn p" onclick="toggle(${id})">Inativar</button>`}</div>`:`${X}<h2>Eliminar cliente</h2><p>Eliminar “${esc(c.n)}”?</p><div class="acts"><button class="btn" onclick="closeM('mInfo')">Cancelar</button><button class="btn d" onclick="C.c=C.c.filter(x=>x.id!==${id});saveC();closeM('mInfo');render();toast('Cliente eliminado.')">Eliminar</button></div>`);
+}
+
+/* relatório */
+const RIDS=['rc','rt','rk','rp','re','rd','r1','r2'];
+function openRel(){
+  const f=(id,a,t)=>$(id).innerHTML=`<option value="">${t}</option>`+a.map(x=>`<option>${esc(x)}</option>`).join('');
+  f('rc',C.c.map(c=>c.n).sort(),'Todos');f('rk',cats(),'Todas');f('rp',[...new Set(C.c.map(c=>c.pv).filter(Boolean))].sort(),'Todas');
+  RIDS.forEach(i=>$(i).value='');RF=[];$('rN').textContent='';openM('mRel');
+}
+const curF=()=>Object.fromEntries(RIDS.map(i=>[i,$(i).value]));
+const emptyF=x=>!Object.values(x).some(Boolean);
+function nomeF(x,i){const per=x.r1||x.r2?(x.r1?fmtD(x.r1):'início')+' a '+(x.r2?fmtD(x.r2):'hoje'):'';return`Filtro ${i}: `+([x.rk,x.rc,x.rt,x.rp,x.re,x.rd==='1'?'com dívida':x.rd==='0'?'sem dívida':'',per].filter(Boolean).join(', ')||'Todos os clientes')}
+function outroFiltro(){const x=curF();if(emptyF(x))return toast('Escolha pelo menos um filtro.');RF.push(x);RIDS.forEach(i=>$(i).value='');$('rN').textContent=RF.length+' filtro(s) adicionado(s).'}
+function descartarRel(){RF=[];RIDS.forEach(i=>$(i).value='');$('rN').textContent='';closeM('mRel')}
+function finalizarRel(){
+  const x0=curF();if(!emptyF(x0))RF.push(x0);if(!RF.length)return toast('Escolha pelo menos um filtro.');
+  let gt=0,gd=0,html='';
+  RF.forEach((x,i)=>{
+    const cs=C.c.filter(c=>(!x.rc||c.n===x.rc)&&(!x.rt||c.tp===x.rt)&&(!x.rk||c.cat===x.rk)&&(!x.rp||c.pv===x.rp)&&(!x.re||(x.re==='Ativo')===c.ativo)&&(!x.rd||(x.rd==='1')===(divida(c)>0)));
+    let st=0,sd=0;
+    const rows=cs.map(c=>{const t=docsOf(c).filter(d=>(!x.r1||d.data>=x.r1)&&(!x.r2||d.data<=x.r2)).reduce((s,d)=>s+d.valor,0);st+=t;sd+=divida(c);
+      return`<tr><td>${c.ref}</td><td>${esc(c.n)}</td><td>${esc(c.cat)}</td><td>${esc(c.pv)||'—'}</td><td>${c.ativo?'Ativo':'Inativo'}</td><td class="r">${kz(t)}</td><td class="r">${kz(divida(c))}</td></tr>`}).join('')||'<tr><td colspan="7">Nenhum cliente neste filtro.</td></tr>';
+    gt+=st;gd+=sd;
+    html+=`<h3>${esc(nomeF(x,i+1))}</h3><table><thead><tr><th>Ref.</th><th>Nome</th><th>Categoria</th><th>Província</th><th>Estado</th><th class="r">Total comprado</th><th class="r">Dívida</th></tr></thead><tbody>${rows}<tr class="s"><td colspan="5">Subtotal (${cs.length} clientes)</td><td class="r">${kz(st)}</td><td class="r">${kz(sd)}</td></tr></tbody></table>`;
+  });
+  pdf('Relatório de Clientes do dia '+new Date().toLocaleDateString('pt-PT'),html+`<h3 style="text-align:right">Total comprado: ${kz(gt)} · Em dívida: ${kz(gd)}</h3>`);
+  RF=[];closeM('mRel');
+}
+function pdf(titulo,corpo){
+  const w=window.open('','_blank');if(!w)return toast('O navegador bloqueou a janela. Permita pop-ups e tente de novo.');
+  w.document.write(`<!DOCTYPE html><html lang="pt"><head><meta charset="utf-8"><title>${esc(titulo)}</title><style>body{font:12px "Segoe UI",Arial,sans-serif;color:#111;margin:24px}h1{font-size:18px;margin:0}h3{margin:20px 0 6px;font-size:13px}p{margin:2px 0 12px;color:#555}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #ccc;padding:5px 6px;text-align:left}th{background:#eef3f0}.r{text-align:right}.s td{font-weight:700;border-top:2px solid #333}@media print{@page{size:A4 landscape;margin:12mm}}</style></head><body><h1>${esc(titulo)}</h1><p>Emitido em ${new Date().toLocaleString('pt-PT')}</p>${corpo}<script>onload=()=>setTimeout(()=>print(),300)<\/script></body></html>`);w.document.close();
+}
+function dl(n,t,ty){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:ty}));a.download=n;a.click()}
+function exportCSV(){const h=['ID','Nome','Referência','NIF/BI','Telefone','Categoria','Província','Total comprado','Dívida','Estado'];dl('clientes.csv','\ufeff'+[h,...filtered().map(c=>[c.id,c.n,c.ref,c.nif,c.tel,c.cat,c.pv,compras(c),divida(c),c.ativo?'Ativo':'Inativo'])].map(l=>l.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\n'),'text/csv')}
+function backup(){dl('clientes-backup-'+today()+'.json',JSON.stringify(C),'application/json')}
+function restore(i){const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.c||!d.pg||!d.doc)throw 0;if(confirm('Substituir os dados atuais?')){C=d;saveC();C=load();render();toast('Dados importados.')}}catch(e){toast('Ficheiro inválido.')}i.value=''};r.readAsText(f)}
+function tema(){const d=document.documentElement,t=d.dataset.t==='dark'?'light':'dark';d.dataset.t=t;localStorage.setItem('tema',t)}
+document.documentElement.dataset.t=localStorage.getItem('tema')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.ov.on').forEach(o=>o.id==='mForm'?cancelForm():closeM(o.id))});
+saveC();render();
+</script>
+</body>
+</html>

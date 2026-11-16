@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="pt-AO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gerir vitrine</title>
+<link rel="stylesheet" href="estilo.css">
+<script src="filtros.js" defer></script>
+<script src="preferencias.js"></script>
+<script src="modais.js"></script>
+<script src="escopo.js"></script>
+<style>
+ /* Botão Menu flutuante no canto superior direito */
+ .menuw.fab{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:14px;z-index:40}
+ .fab>.btn{border-radius:999px;padding:10px 18px;box-shadow:0 6px 18px rgba(0,0,0,.28)}
+ main{padding-top:64px}
+ .pend{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:40;width:62px;height:62px;padding:0;border-radius:50%;display:grid;place-items:center;font-size:26px;line-height:1;box-shadow:0 8px 22px rgba(0,0,0,.35)}
+ .pend b{position:absolute;top:-4px;right:-4px;min-width:24px;height:24px;padding:0 6px;border-radius:99px;background:#e11d48;color:#fff;font-size:13px;display:inline-grid;place-items:center;border:2px solid var(--sf)}
+ .pend.pulse{animation:npulse .9s ease 3}
+ @keyframes npulse{50%{transform:scale(1.14)}}
+ .pc2{border:1px solid var(--bd);border-radius:12px;padding:12px 14px;margin-top:10px;background:var(--sf)}
+ .pc2h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+ .pc2g{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:4px 14px;margin:8px 0;font-size:13.5px}
+ .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#e11d48;margin-right:6px;vertical-align:middle}
+</style>
+</head>
+<body class="pg-vitrinegerir">
+<button type="button" id="pend" class="btn p pend hide" onclick="go('pedidos')" aria-label="Pedidos pendentes" title="Pedidos pendentes de atendimento">🛒<b id="pN">0</b></button>
+<div class="menuw fab">
+  <button class="btn p" onclick="toggleMenu(event)" aria-haspopup="true">☰ Menu</button>
+  <div class="menu" id="menu">
+    <div id="tabs"></div>
+    <hr>
+    <button onclick="todosVistos()">Marcar pedidos como vistos</button>
+    <button onclick="window.open('Vitrine.html'+(window.__empresa?'?e='+window.__empresa:''),'_blank')">Ver vitrine</button>
+    <button onclick="tema()">Claro/Escuro</button>
+  </div>
+</div>
+<script>
+function toggleMenu(e){e.stopPropagation();document.getElementById('menu').classList.toggle('on')}
+document.addEventListener('click',()=>document.getElementById('menu').classList.remove('on'));
+</script>
+<main id="main"></main>
+<div class="ov" id="m"><div class="md" id="mb"></div></div>
+<div id="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const P=()=>JSON.parse(localStorage.getItem('produtos_v2')||'{"p":[],"h":[]}');
+const V0={cfg:{nome:'Minha Loja',logo:'',wa:'',email:'',end:'',tel:'',hor:'',redes:'',boas:'Bem-vindo à nossa loja!',cor:'#0f6b57',popup:true,popT:''},ov:{},ped:[],ban:[],views:{}};
+const loadV=()=>{const v=JSON.parse(localStorage.getItem('vitrine_v1')||'{}');return{...V0,...v,cfg:{...V0.cfg,...(v.cfg||{})}}};
+let V=loadV(),T='painel',imgs=[];
+const saveV=()=>localStorage.setItem('vitrine_v1',JSON.stringify(V));
+const kz=v=>(Number(v)||0).toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2}).replace(/\u00a0/g,'.')+' Kz';
+const norm=s=>(s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const esc=s=>(s||'').toString().replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const op=h=>{$('mb').innerHTML=h;$('m').classList.add('on')},cl=()=>$('m').classList.remove('on');
+function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',2600)}
+function final(p){const pv=+p.pv||0,d=+p.ds||0;return Math.max(0,p.dt==='Kz'?pv-d:pv-pv*d/100)}
+function vp(p){const o=V.ov[p.id]||{},base=final(p),t=Date.now();const on=o.dv>0&&(!o.di||t>=new Date(o.di+'T00:00:00'))&&(!o.df||t<=new Date(o.df+'T23:59:59'));return{pr:on?Math.max(0,o.dt==='Kz'?base-o.dv:base*(1-o.dv/100)):base,on}}
+const reserv=id=>V.ped.filter(o=>['Novo','Em tratamento'].includes(o.estado)).reduce((s,o)=>s+o.itens.filter(i=>i.pid===id).reduce((t,i)=>t+i.q,0),0);
+const lista=()=>P().p.filter(p=>p.pub&&!(V.ov[p.id]||{}).rem);
+const estP=p=>(V.ov[p.id]||{}).oculto?'Escondido':'Publicado';
+const ESTS=['Novo','Em tratamento','Confirmado','Entregue','Cancelado'];
+const wa=(n,m)=>'https://wa.me/'+(n||'').replace(/\D/g,'').replace(/^(\d{9})$/,'244$1')+'?text='+encodeURIComponent(m);
+function confirmBox(msg,fn,yes='Confirmar',no='Cancelar'){window._fn=fn;op(`<h2>${msg}</h2><div class="acts"><button class="btn" onclick="cl()">${no}</button><button class="btn p" onclick="cl();_fn()">${yes}</button></div>`)}
+function go(t){T=t;draw()}
+/* pedidos novos que o gestor ainda não viu */
+const PEND=['Novo','Em tratamento'],ATEND=['Confirmado','Entregue'];
+const pendentes=()=>V.ped.filter(o=>PEND.includes(o.estado)).length;
+const naoVistos=()=>V.ped.filter(o=>o.estado==='Novo'&&!o.visto).length;
+let _nv=-1;
+function badge(){
+  const n=pendentes(),nv=naoVistos(),b=$('pend');
+  b.classList.toggle('hide',!n);$('pN').textContent=n>99?'99+':n;
+  if(_nv>=0&&nv>_nv){b.classList.remove('pulse');void b.offsetWidth;b.classList.add('pulse');toast('Novo pedido de compra recebido.')}
+  _nv=nv;
+}
+function marcarVisto(n){
+  V=loadV();const o=getO(n);
+  if(o&&!o.visto){o.visto=true;saveV();badge();if(T==='pedidos'&&$('tb'))pl()}
+}
+function todosVistos(){V=loadV();V.ped.forEach(o=>{o.visto=true});saveV();badge();if(T==='pedidos'&&$('tb'))pl();toast('Pedidos marcados como vistos.')}
+window.addEventListener('storage',e=>{
+  if(e.key!=='vitrine_v1')return;
+  V=loadV();badge();
+  if(T==='pedidos'&&$('tb'))pl();else if(T==='painel')draw();
+});
+function draw(){
+  V=loadV();badge();
+  $('tabs').innerHTML=[['painel','Painel'],['produtos','Produtos na vitrine'],['pedidos','Pedidos'],['pub','Publicidade'],['def','Definições']].map(([k,t])=>`<button class="btn ${T===k?'on':''}" onclick="go('${k}')">${t}</button>`).join('');
+  ({painel,produtos,pedidos,pub,def})[T]();
+}
+const unid=o=>o.itens.reduce((t,i)=>t+i.q,0);
+const corE=e=>e==='Cancelado'?'r':PEND.includes(e)?'o':'';
+function pedCard(o){
+  const t=(o.cli.tel||'').trim();
+  return `<div class="pc2"><div class="pc2h"><b>${o.num}</b><span class="tg ${corE(o.estado)}">${o.estado}</span><span class="hint">${o.data}</span></div>
+  <div><b>${esc(o.cli.nome)}</b></div>
+  <div class="hint">Tel: ${esc(t)||'—'}${o.cli.mail?' · '+esc(o.cli.mail):''}${t?` · <a target="_blank" href="${wa(t,`Olá ${o.cli.nome}, sobre o seu pedido ${o.num}.`)}">WhatsApp</a>`:''}</div>
+  <div class="pc2g"><span>Referência: <b>${o.num}</b></span><span>Unidades: <b>${unid(o)}</b></span><span>Valor a pagar: <b>${kz(o.total)}</b></span><span>Pagamento: <b>${esc(o.pag)||'—'}</b></span><span>Entrega: <b>${esc(o.cli.end)||'não indicada'}</b></span></div>
+  <div class="row" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="contactar('${o.num}')">Contactar</button><button class="btn" onclick="det('${o.num}')">Ver pedido</button><button class="btn p" onclick="emitir('${o.num}')">Emitir documento</button></div></div>`;
+}
+function painel(){
+  const m=new Date().getMonth(),ok=V.ped.filter(o=>o.estado!=='Cancelado'),X=P();
+  const top=Object.entries(V.views).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([id,n])=>[X.p.find(p=>p.id==id),n]).filter(([p])=>p);
+  $('main').innerHTML=`<div class="cards">${[[lista().length,'Produtos publicados'],[pendentes(),'Pedidos pendentes'],[V.ped.filter(o=>ATEND.includes(o.estado)).length,'Pedidos atendidos'],[V.ped.filter(o=>new Date(o.ts).getMonth()===m).length,'Pedidos do mês'],[kz(ok.reduce((s,o)=>s+o.total,0)),'Valor dos pedidos']].map(([a,b])=>`<div class="card"><b>${a}</b><span>${b}</span></div>`).join('')}</div>
+  <div class="card"><b style="font-size:15px">Pedidos recentes</b>${V.ped.slice(-5).reverse().map(pedCard).join('')||'<p class="hint">Ainda não há pedidos.</p>'}</div>
+  <div class="card" style="margin-top:12px"><b style="font-size:15px">Produtos mais vistos</b>${top.map(([p,n])=>`<div class="hl"><span>${esc(p.n)}</span><span>${n} visualizações</span></div>`).join('')||'<p class="hint">Ainda sem visualizações.</p>'}</div>`;
+}
+/* produtos */
+function produtos(){
+  $('main').innerHTML=`<div class="filters"><input id="q" placeholder="Pesquisar nome" oninput="pt()"><select id="c" onchange="pt()"></select><select id="s" onchange="pt()"></select><select id="e" onchange="pt()"><option value="">Estado</option><option>Publicado</option><option>Escondido</option><option>Em promoção</option></select></div><p class="hint">Toque numa linha para gerir o produto. Para publicar novos produtos use “Enviar na vitrine” no Produtos.html.</p><div class="tw"><table><thead><tr><th>Imagem</th><th>Nome</th><th>Categoria</th><th>Preço</th><th>Desconto</th><th>Stock</th><th>Estado</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>`;
+  const L=lista(),f=(id,a,t)=>$(id).innerHTML=`<option value="">${t}</option>`+a.map(x=>`<option>${esc(x)}</option>`).join('');
+  f('c',[...new Set(L.map(p=>p.c))].sort(),'Categoria');f('s',[...new Set(L.map(p=>p.sc))].sort(),'Subcategoria');pt();
+}
+function pt(){
+  const q=norm($('q').value),r=lista().filter(p=>(!q||norm(p.n).includes(q))&&(!$('c').value||p.c===$('c').value)&&(!$('s').value||p.sc===$('s').value)&&(!$('e').value||($('e').value==='Em promoção'?vp(p).on:estP(p)===$('e').value)));
+  $('tb').innerHTML=r.map(p=>{const o=V.ov[p.id]||{},v=vp(p),im=(o.imgs||[])[0]||p.im;return`<tr class="k" onclick="edP(${p.id})"><td>${im?`<img class="th" src="${im}" alt="">`:'<span class="th"></span>'}</td><td>${esc(p.n)}${o.dest?' ★':''}</td><td>${esc(p.c)}</td><td>${kz(v.pr)}</td><td>${v.on?(o.dt==='Kz'?kz(o.dv):o.dv+'%'):'—'}</td><td>${p.q-reserv(p.id)}</td><td><span class="tg ${estP(p)==='Escondido'?'r':''}">${estP(p)}</span></td><td><button class="btn">Gerir</button></td></tr>`}).join('')||'<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--mu)">Nenhum produto publicado. No Produtos.html use “Enviar na vitrine”.</td></tr>';
+}
+function edP(id){
+  const p=P().p.find(x=>x.id===id),o=V.ov[id]||{};imgs=o.imgs?[...o.imgs]:(p.im?[p.im]:[]);
+  op(`<h2>${esc(p.n)}</h2>
+  <label>Descrição (aparece na vitrine)</label><textarea id="vd" rows="3">${esc(o.desc)}</textarea>
+  <label>Desconto</label><div class="g2"><div style="display:flex;gap:6px"><input id="vv" type="number" min="0" step="0.01" value="${o.dv||''}"><select id="vt" style="width:80px"><option ${o.dt==='Kz'?'':'selected'}>%</option><option ${o.dt==='Kz'?'selected':''}>Kz</option></select></div><span></span></div>
+  <div class="g2"><div><label>Início (opcional)</label><input id="vi" type="date" value="${o.di||''}"></div><div><label>Fim (opcional)</label><input id="vf" type="date" value="${o.df||''}"></div></div>
+  <label>Imagens (pode escolher várias)</label><input type="file" accept="image/*" multiple onchange="ld(this)"><div id="pv" class="row" style="margin-top:6px"></div>
+  <label class="chk"><input type="checkbox" id="vs" ${o.dest?'checked':''}>Destacar no topo da vitrine</label>
+  <label class="chk"><input type="checkbox" id="vo" ${o.oculto?'checked':''}>Esconder da vitrine</label>
+  <div class="acts"><button class="btn d" onclick="rmV(${id})">Remover da vitrine</button><button class="btn" onclick="cl()">Cancelar</button><button class="btn p" onclick="svP(${id})">Guardar</button></div>`);prev();
+}
+const prev=()=>$('pv').innerHTML=imgs.map((s,i)=>`<span><img class="th" style="width:60px;height:60px" src="${s}" alt=""><br><button class="btn" style="padding:2px 8px" onclick="imgs.splice(${i},1);prev()">×</button></span>`).join('');
+function ld(inp){[...inp.files].forEach(f=>{const r=new FileReader();r.onload=()=>{const i=new Image();i.onload=()=>{const k=Math.min(1,700/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*k;c.height=i.height*k;c.getContext('2d').drawImage(i,0,0,c.width,c.height);imgs.push(c.toDataURL('image/jpeg',.75));prev()};i.src=r.result};r.readAsDataURL(f)})}
+function svP(id){
+  const d={desc:$('vd').value.trim(),dv:+$('vv').value||0,dt:$('vt').value,di:$('vi').value,df:$('vf').value,imgs:[...imgs],dest:$('vs').checked,oculto:$('vo').checked};
+  confirmBox('Pretende alterar os dados do produto na vitrine?',()=>{V=loadV();V.ov[id]={...(V.ov[id]||{}),...d};saveV();toast('Dados alterados');draw()});
+}
+function rmV(id){confirmBox('Remover este produto da vitrine? Continua na tabela de produtos cadastrados.',()=>{V=loadV();V.ov[id]={...(V.ov[id]||{}),rem:true};saveV();toast('Removido da vitrine');draw()},'Remover')}
+/* pedidos */
+function pedidos(){
+  $('main').innerHTML=`<div class="filters"><select id="fe"><option value="">Estado</option>${ESTS.map(e=>`<option>${e}</option>`).join('')}</select><input id="fcl" placeholder="Cliente"><input id="f1" type="date"><input id="f2" type="date"></div><div class="tw"><table><thead><tr><th>Nº</th><th>Cliente</th><th>Telefone</th><th>Total</th><th>Data</th><th>Estado</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>`;
+  ['fe','fcl','f1','f2'].forEach(i=>$(i).addEventListener('input',pl));pl();
+}
+function pl(){
+  const t1=$('f1').value?new Date($('f1').value+'T00:00:00').getTime():0,t2=$('f2').value?new Date($('f2').value+'T23:59:59').getTime():0;
+  const r=V.ped.filter(o=>(!$('fe').value||o.estado===$('fe').value)&&(!$('fcl').value||norm(o.cli.nome).includes(norm($('fcl').value)))&&(!t1||o.ts>=t1)&&(!t2||o.ts<=t2)).reverse();
+  $('tb').innerHTML=r.map(o=>`<tr><td>${o.estado==='Novo'&&!o.visto?'<span class="dot" title="Ainda não visto"></span>':''}${o.num}</td><td>${esc(o.cli.nome)}</td><td>${esc(o.cli.tel)}</td><td>${kz(o.total)}</td><td>${o.data}</td><td><span class="tg ${o.estado==='Cancelado'?'r':''}">${o.estado}</span></td><td><button class="btn" onclick="acao('${o.num}')">Ação</button></td></tr>`).join('')||'<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--mu)">Sem pedidos.</td></tr>';
+}
+const getO=n=>V.ped.find(o=>o.num===n);
+function acao(n){marcarVisto(n);op(`<h2>${n}</h2><button class="btn li" onclick="det('${n}')">Ver detalhe</button><button class="btn li" onclick="nota('${n}')">Nota</button><button class="btn li" onclick="contactar('${n}')">Contactar</button><button class="btn li" onclick="estado('${n}')">Mudar estado</button><button class="btn li" onclick="emitir('${n}')">Emitir documento</button><button class="btn li d" onclick="canc('${n}')">Cancelar pedido</button><div class="acts"><button class="btn" onclick="cl()">Fechar</button></div>`)}
+const bk=n=>`<div class="acts"><button class="btn" onclick="acao('${n}')">Voltar</button></div>`;
+function det(n){
+  const o=getO(n),t=(o.cli.tel||'').trim();
+  op(`<h2>Pedido ${n}</h2><span class="tg ${corE(o.estado)}">${o.estado}</span>
+  ${o.itens.map(i=>`<div class="hl"><span>${esc(i.n)} × ${i.q}</span><span>${kz(i.pu*i.q)}</span></div>`).join('')}
+  <p><b>Valor a pagar: ${kz(o.total)}</b> · ${unid(o)} unidade(s)</p>
+  <p>Referência do pedido: <b>${n}</b><br>Data: ${o.data}<br>Tipo de pagamento: ${esc(o.pag)||'—'}<br>Localização de entrega: ${esc(o.cli.end)||'não indicada'}</p>
+  <p>Cliente: <b>${esc(o.cli.nome)}</b><br>Telefone: ${esc(t)||'—'}${t?` · <a target="_blank" href="${wa(t,`Olá ${o.cli.nome}, sobre o seu pedido ${n} na ${V.cfg.nome}.`)}">WhatsApp</a>`:''}<br>E-mail: ${o.cli.mail?`<a href="mailto:${esc(o.cli.mail)}">${esc(o.cli.mail)}</a>`:'—'}</p>
+  <p>Observações: ${esc(o.obs)||'—'}<br>Nota: ${esc(o.nota)||'—'}${o.motivo?'<br>Motivo do cancelamento: '+esc(o.motivo):''}</p>${bk(n)}`);
+}
+function nota(n){const o=getO(n);op(`<h2>Nota — ${n}</h2><textarea id="nt" rows="4">${esc(o.nota)}</textarea><div class="acts"><button class="btn" onclick="acao('${n}')">Voltar</button><button class="btn p" onclick="cfNota('${n}')">Guardar</button></div>`)}
+function cfNota(n){const v=$('nt').value;op(`<h2>Guardar a nota?</h2><div class="acts"><button class="btn" onclick="nota('${n}')">Não</button><button class="btn p" onclick="V=loadV();getO('${n}').nota=${JSON.stringify(v).replace(/"/g,'&quot;')};saveV();cl();toast('Nota guardada');draw()">Sim</button></div>`)}
+function contactar(n){const o=getO(n);op(`<h2>Contactar ${esc(o.cli.nome)}</h2><a class="btn li" href="tel:${esc(o.cli.tel)}">Ligar: ${esc(o.cli.tel)}</a><a class="btn li" target="_blank" href="${wa(o.cli.tel,`Olá ${o.cli.nome}, sobre o seu pedido ${n} na ${V.cfg.nome}.`)}">WhatsApp com mensagem pronta</a>${o.cli.mail?`<a class="btn li" href="mailto:${esc(o.cli.mail)}?subject=${encodeURIComponent('Pedido '+n)}">E-mail: ${esc(o.cli.mail)}</a>`:''}${bk(n)}`)}
+function estado(n){const o=getO(n);op(`<h2>Mudar estado</h2><select id="ne">${ESTS.map(e=>`<option ${e===o.estado?'selected':''}>${e}</option>`).join('')}</select><div class="acts"><button class="btn" onclick="acao('${n}')">Voltar</button><button class="btn p" onclick="setE('${n}',$('ne').value)">Guardar</button></div>`)}
+function setE(n,e,motivo){
+  V=loadV();const o=getO(n),X=P();
+  if(e==='Confirmado'&&!o.abatido){
+    for(const i of o.itens){const p=X.p.find(x=>x.id===i.pid);if(p&&p.q<i.q)return toast('Stock insuficiente de '+p.n+'.')}
+    o.itens.forEach(i=>{const p=X.p.find(x=>x.id===i.pid);if(!p)return;p.qa=p.q;p.q-=i.q;X.h.push({us:((window.__who&&__who())||{}).name||'',pid:p.id,tipo:'Saída',qtd:i.q,data:new Date().toLocaleString('pt-PT'),ts:Date.now(),motivo:'Pedido '+n,dest:'Vitrine',sol:o.cli.nome})});o.abatido=true;localStorage.setItem('produtos_v2',JSON.stringify(X));
+  }
+  if(e==='Cancelado'&&o.abatido){o.itens.forEach(i=>{const p=X.p.find(x=>x.id===i.pid);if(p){p.q+=i.q;X.h.push({us:((window.__who&&__who())||{}).name||'',pid:p.id,tipo:'Entrada',qtd:i.q,data:new Date().toLocaleString('pt-PT'),ts:Date.now(),motivo:'Pedido cancelado '+n})}});o.abatido=false;localStorage.setItem('produtos_v2',JSON.stringify(X))}
+  o.estado=e;if(motivo)o.motivo=motivo;saveV();draw();
+  op(`<h2>Estado alterado para “${e}”</h2><p class="hint">Avisar o cliente por WhatsApp?</p><div class="acts"><button class="btn" onclick="cl()">Agora não</button><a class="btn p" target="_blank" onclick="cl()" href="${wa(o.cli.tel,`Olá ${o.cli.nome}, o seu pedido ${n} na ${V.cfg.nome} está agora: ${e}.`+(motivo?` Motivo: ${motivo}.`:''))}">Avisar por WhatsApp</a></div>`);
+}
+function emitir(n){
+  op(`<h2>Emitir documento — ${n}</h2><p class="hint">Escolha o tipo de documento a emitir com os dados deste pedido.</p>
+  <button class="btn li" onclick="fatura('${n}','FT')">Fatura</button>
+  <button class="btn li" onclick="fatura('${n}','FR')">Fatura/recibo</button>
+  <button class="btn li" onclick="fatura('${n}','RC')">Recibo</button>
+  <div class="acts"><button class="btn" onclick="cl()">Cancelar</button></div>`);
+}
+function irModulo(f,h){try{if(window.top!==window.self){window.top.location.hash='#'+h;return}}catch(e){}location.href=f}
+function fatura(n,tipo){
+  const o=getO(n);
+  localStorage.setItem('vitrine_fatura_pendente',JSON.stringify({pedido:n,tipo:tipo||'FT',cliente:o.cli,itens:o.itens,total:o.total}));
+  cl();irModulo('4_Faturacao.html','faturacao');
+}
+function canc(n){op(`<h2>Cancelar ${n}</h2><label>Motivo *</label><input id="mt"><div class="acts"><button class="btn" onclick="acao('${n}')">Voltar</button><button class="btn d" onclick="$('mt').value.trim()?setE('${n}','Cancelado',$('mt').value.trim()):toast('Indique o motivo.')">Confirmar cancelamento</button></div>`)}
+/* publicidade */
+function pub(){
+  const c=V.cfg,link=location.href.replace(/[^/]*$/,'')+'Vitrine.html';
+  $('main').innerHTML=`<div class="card"><b style="font-size:16px">Banner principal</b><div class="g2"><div><label>Título</label><input id="bt"></div><div><label>Link para categoria (opcional)</label><input id="bl"></div></div><label>Texto</label><input id="bx"><label>Imagem</label><input type="file" id="bf" accept="image/*"><div class="acts"><button class="btn p" onclick="addBan()">Adicionar banner</button></div>${V.ban.map((b,i)=>`<div class="hl"><span>${esc(b.t)} <span class="hint">${esc(b.tx)}</span></span><button class="btn d" onclick="V.ban.splice(${i},1);saveV();draw()">Remover</button></div>`).join('')||'<p class="hint">Sem banners. A vitrine mostra a mensagem de boas-vindas.</p>'}</div>
+  <div class="card" style="margin-top:12px"><b style="font-size:16px">Pop-up de anúncio (primeira visita)</b><label class="chk"><input type="checkbox" id="pp" ${c.popup?'checked':''} onchange="V.cfg.popup=this.checked;saveV()">Ativo</label><label>Texto do anúncio</label><input id="pt2" value="${esc(c.popT)}" onchange="V.cfg.popT=this.value;saveV()"></div>
+  <div class="card" style="margin-top:12px"><b style="font-size:16px">Divulgar</b><p class="hint">Descontos com data de fim terminam sozinhos. Defina-os em “Produtos na vitrine”.</p><div class="row"><input id="lk" value="${esc(link)}" readonly><button class="btn" onclick="$('lk').select();document.execCommand('copy');toast('Link copiado')">Copiar link</button><a class="btn" target="_blank" href="${'https://wa.me/?text='+encodeURIComponent('Visite a nossa vitrine: '+link)}">Partilhar por WhatsApp</a></div></div>`;
+}
+function addBan(){
+  const f=$('bf').files[0],t=$('bt').value.trim();if(!t)return toast('Escreva o título.');
+  const push=im=>{V.ban.push({img:im,t,tx:$('bx').value.trim(),link:$('bl').value.trim()});saveV();draw();toast('Banner adicionado')};
+  if(!f)return push('');const r=new FileReader();r.onload=()=>{const i=new Image();i.onload=()=>{const k=Math.min(1,1000/i.width),c=document.createElement('canvas');c.width=i.width*k;c.height=i.height*k;c.getContext('2d').drawImage(i,0,0,c.width,c.height);push(c.toDataURL('image/jpeg',.7))};i.src=r.result};r.readAsDataURL(f);
+}
+/* definições */
+const DF=[['nome','Nome da loja'],['wa','WhatsApp'],['email','E-mail'],['tel','Telefone'],['end','Endereço'],['hor','Horário'],['redes','Redes sociais'],['boas','Mensagem de boas-vindas']];
+let lg='';
+function def(){
+  const c=V.cfg;lg=c.logo;
+  $('main').innerHTML=`<div class="card" style="max-width:640px">${DF.map(([k,t])=>`<label>${t}</label><input id="d_${k}" value="${esc(c[k])}">`).join('')}<div class="g2"><div><label>Cor da vitrine</label><input id="d_cor" type="color" value="${c.cor}" style="height:40px;padding:2px"></div><div><label>Logótipo</label><input type="file" accept="image/*" onchange="lgo(this)"></div></div>${lg?`<img id="lgp" src="${lg}" style="max-height:50px;margin-top:8px" alt="">`:''}<div class="acts"><button class="btn" onclick="backup()">Cópia de segurança</button><label class="btn" style="margin:0;color:var(--tx)">Importar<input type="file" accept=".json" hidden onchange="restore(this)"></label><button class="btn p" onclick="svDef()">Guardar</button></div></div>`;
+}
+function lgo(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const i=new Image();i.onload=()=>{const k=Math.min(1,200/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*k;c.height=i.height*k;c.getContext('2d').drawImage(i,0,0,c.width,c.height);lg=c.toDataURL('image/png');toast('Logótipo carregado')};i.src=r.result};r.readAsDataURL(f)}
+function svDef(){confirmBox('Quer guardar os dados alterados?',()=>{V=loadV();DF.forEach(([k])=>V.cfg[k]=$('d_'+k).value.trim());V.cfg.cor=$('d_cor').value;V.cfg.logo=lg;saveV();toast('Definições guardadas com sucesso')})}
+function dl(n,t){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'application/json'}));a.download=n;a.click()}
+function backup(){dl('vitrine-backup-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify(V))}
+function restore(i){const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.cfg||!d.ped)throw 0;if(confirm('Substituir os dados atuais?')){V=d;saveV();draw();toast('Dados importados.')}}catch(e){toast('Ficheiro inválido.')}};r.readAsText(f)}
+function tema(){const d=document.documentElement,t=d.dataset.t==='dark'?'light':'dark';d.dataset.t=t;localStorage.setItem('tema',t)}
+document.documentElement.dataset.t=localStorage.getItem('tema')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+document.addEventListener('keydown',e=>{if(e.key==='Escape')cl()});
+draw();
+</script>
+</body>
+</html>

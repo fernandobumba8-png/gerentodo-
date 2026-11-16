@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-AO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Documentos</title>
+<link rel="stylesheet" href="estilo.css">
+<script src="filtros.js" defer></script>
+<script>
+/* Mostra no ecrã qualquer erro de JavaScript desta página (para diagnóstico) */
+window.addEventListener('error',function(e){
+  var d=document.getElementById('errBar');
+  if(!d){d=document.createElement('div');d.id='errBar';d.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:#b91c1c;color:#fff;padding:8px 12px;border-radius:8px;font:12px/1.4 monospace;white-space:pre-wrap;max-height:30vh;overflow:auto';
+    d.onclick=function(){d.remove()};(document.body||document.documentElement).appendChild(d)}
+  d.textContent+='Erro: '+e.message+' ('+String(e.filename||'').split('/').pop()+':'+e.lineno+')\n';
+  if(/(LS|loadF|TIPOS|modal) is not defined/.test(e.message)&&!/FALTA/.test(d.textContent))d.textContent+='FALTA o ficheiro faturacao-core.js: copie-o para a mesma pasta desta página e carregue com Ctrl+F5.\n';
+});
+</script>
+<script src="preferencias.js"></script>
+<script src="modais.js"></script>
+<script src="escopo.js"></script>
+<script src="faturacao-core.js"></script>
+<style>
+ /* Botão Menu flutuante no canto superior direito */
+ .menuw.fab{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:14px;z-index:40}
+ .fab>.btn{border-radius:999px;padding:10px 14px;box-shadow:0 6px 18px rgba(0,0,0,.28)}
+ main{padding-top:64px}
+ 
+ .qs-bk{position:fixed;inset:0;z-index:44;background:rgba(2,6,23,.45);display:none}.qs-bk.on{display:block}
+</style>
+</head>
+<body class="pg-documentos">
+<div class="menuw fab">
+  <button class="btn p" onclick="toggleMenu(event)" aria-haspopup="true">☰</button>
+  <div class="menu" id="menu">
+     <button onclick="openPag()">Registar pagamento</button>
+    <hr>
+    <button onclick="exportCSV()">Exportar CSV</button>
+    <button onclick="document.getElementById('impf').click()">Importar</button>
+    <hr>
+    
+  </div>
+</div>
+<input type="file" id="impf" accept=".json" hidden onchange="restore(this)">
+<script>
+function irModulo(f,h){try{if(window.top!==window.self){window.top.location.hash='#'+h;return}}catch(e){}location.href=f}
+function toggleMenu(e){e.stopPropagation();document.getElementById('menu').classList.toggle('on')}
+document.addEventListener('click',()=>document.getElementById('menu').classList.remove('on'));
+</script>
+<main>
+  <div class="filters">
+    <input id="fq" placeholder="Pesquisar nº, cliente, NIF" oninput="render()">
+    <select id="ft" onchange="render()"></select>
+    <select id="fe" onchange="render()"><option value="">Estado</option><option>Emitido</option><option>Parcialmente pago</option><option>Pago</option><option>Anulado</option></select>
+    <select id="fv" onchange="render()"><option value="">Dívida</option><option value="1">Com dívida</option><option value="2">Vencidos</option></select>
+    <input id="f1" type="date" onchange="render()" title="Data inicial"><input id="f2" type="date" onchange="render()" title="Data final">
+    <button class="btn" onclick="['fq','ft','fe','fv','f1','f2'].forEach(i=>$(i).value='');render()">Limpar filtros</button>
+  </div>
+  <section class="cards" id="cards"></section>
+  <p class="hint" id="count"></p>
+  <div class="tw"><table><thead><tr><th>Nº</th><th>Tipo</th><th>Cliente</th><th>NIF</th><th>Data</th><th>Vencimento</th><th>Total</th><th>Dívida</th><th>Estado</th><th>Emitido por</th><th>Envio</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>
+</main>
+<div class="ov" id="m"><div class="md" id="mb"></div></div>
+<div id="toast"></div>
+<script>
+function render(){
+  F=loadF();
+  const t=$('ft'),tv=t.value;t.innerHTML='<option value="">Tipo de documento</option>'+Object.entries(TIPOS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');t.value=tv;
+  const q=norm($('fq').value);
+  const r=F.docs.filter(d=>(!q||norm(d.num+' '+d.cli.n+' '+d.cli.nif).includes(q))&&(!$('ft').value||d.tipo===$('ft').value)&&(!$('fe').value||d.estado===$('fe').value)&&(!$('fv').value||($('fv').value==='1'?divida(d)>0:vencido(d)))&&(!$('f1').value||d.dia>=$('f1').value)&&(!$('f2').value||d.dia<=$('f2').value)).sort((a,b)=>b.ts-a.ts);
+  $('tb').innerHTML=r.map(d=>`<tr><td>${d.num}</td><td>${TIPOS[d.tipo]}</td><td>${esc(d.cli.n)}</td><td>${esc(d.cli.nif)||'—'}</td><td>${fmtD(d.dia)}</td><td>${fmtD(d.venc)}</td><td>${kz(d.total)}</td><td class="${vencido(d)?'rd':''}">${kz(divida(d))}</td><td><span class="tg ${d.estado==='Anulado'?'r':''}">${d.estado}</span></td><td>${esc(d.vend)||'—'}</td><td class="hint">${esc(d.envio)}</td><td><button class="btn s" onclick="acao(${d.id})">Ação</button></td></tr>`).join('')||'<tr><td colspan="12" style="text-align:center;padding:24px;color:var(--mu)">Nenhum documento. Emita o primeiro em “Novo documento”.</td></tr>';
+  $('count').textContent=r.length+' de '+F.docs.length+' documentos';
+  $('cards').innerHTML=[[F.docs.length,'Documentos emitidos'],[kz(F.docs.reduce((s,d)=>s+divida(d),0)),'Total em dívida'],[F.docs.filter(vencido).length,'Vencidos'],[F.docs.filter(d=>d.estado==='Anulado').length,'Anulados']].map(([a,b])=>`<div class="card"><b>${a}</b><span>${b}</span></div>`).join('');
+}
+window.onData=render;
+const get=id=>F.docs.find(d=>d.id===id);
+function acao(id){
+  const d=get(id),an=d.estado==='Anulado';
+  modal(`<h2>${d.num}</h2><p class="hint">${TIPOS[d.tipo]} · ${esc(d.cli.n)} · ${kz(d.total)} · ${d.estado}</p>
+  <button class="btn li" onclick="closeM();viewDoc(get(${id}))">Ver / imprimir</button>
+  <button class="btn li" onclick="env(${id})">Enviar</button>
+  <button class="btn li" ${divida(d)>0?'':'disabled'} onclick="openPag(${id})">Registar pagamento</button>
+  <button class="btn li" onclick="dup(${id},'${d.tipo}',false)">Duplicar</button>
+  ${d.tipo==='FP'?`<button class="btn li" onclick="dup(${id},'FT',true)">Converter em fatura</button>`:''}${d.tipo==='FT'?`<button class="btn li" onclick="dup(${id},'GR',true)">Converter em guia de remessa</button>`:''}
+  <button class="btn li d" ${an||d.tipo==='NC'?'disabled':''} onclick="anul(${id})">Anular</button>
+  <div class="acts"><button class="btn" onclick="closeM()">Fechar</button></div>`);
+}
+function env(id){modal(`<h2>Enviar</h2><button class="btn li" onclick="closeM();enviar(${id},'wa')">WhatsApp do cliente</button><button class="btn li" onclick="closeM();enviar(${id},'mail')">E-mail do cliente</button><div class="acts"><button class="btn" onclick="acao(${id})">Voltar</button></div>`)}
+function dup(id,tipo,conv){LS.s('faturacao_pendente',{from:id,tipo,conv});irModulo('4_Faturacao.html','faturacao')}
+function anul(id){
+  const d=get(id);modal(`<h2>Anular ${d.num}</h2><p class="hint">O documento não é apagado: fica anulado, o stock é reposto e é gerada uma nota de crédito. Se já tiver pagamentos, ficam estornados como crédito do cliente; num recibo, as faturas pagas voltam a ficar em dívida.</p><label>Motivo *</label><input id="am"><div class="acts"><button class="btn" onclick="acao(${id})">Voltar</button><button class="btn d" onclick="$('am').value.trim()?cfAnul(${id},$('am').value.trim()):toast('Indique o motivo.')">Confirmar anulação</button></div>`);
+}
+function cfAnul(id,m){
+  let nc;try{nc=anular(id,m)}catch(e){return toast((e&&e.message)||'Não foi possível anular.')}
+  render();const d=get(id),p=[];
+  if(nc.rc)p.push(d.estorno>0?`Os pagamentos aplicados por este recibo foram desfeitos: <b>${kz(d.estorno)}</b> voltaram a ficar em dívida nas faturas.`:'Este recibo não tinha pagamentos aplicados.');
+  else{
+    p.push(`Foi gerada a nota de crédito <b>${nc.num}</b>${d.stock===false?' e o stock foi reposto':''}.`);
+    if(d.estorno>0)p.push(`Os pagamentos recebidos (<b>${kz(d.estorno)}</b>) foram estornados e ficam como <b>crédito do cliente</b> (ver em Clientes), para devolver ou usar noutra fatura.`);
+  }
+  modal(`<h2>Documento anulado</h2>${p.map(x=>`<p>${x}</p>`).join('')}<div class="acts"><button class="btn p" onclick="closeM()">Fechar</button></div>`)
+}
+function dl(n,t,ty){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:ty}));a.download=n;a.click()}
+function exportCSV(){const h=['Nº','Tipo','Cliente','NIF','Data','Vencimento','Total','Descontos','IVA','Dívida','Estado','Emitido por','Envio'];dl('documentos.csv','\ufeff'+[h,...F.docs.map(d=>[d.num,TIPOS[d.tipo],d.cli.n,d.cli.nif,fmtD(d.dia),fmtD(d.venc),d.total,d.desc,d.iva,divida(d),d.estado,d.vend||'',d.envio])].map(l=>l.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\n'),'text/csv')}
+function backup(){dl('faturacao-backup-'+today()+'.json',JSON.stringify(F),'application/json')}
+function restore(i){const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.docs||!d.cfg)throw 0;if(confirm('Substituir os dados atuais da faturação?')){F=d;saveF();render();toast('Dados importados.')}}catch(e){toast('Ficheiro inválido.')}};r.readAsText(f)}
+render();
+</script>
+</body>
+</html>

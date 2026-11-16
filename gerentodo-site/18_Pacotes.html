@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-AO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pacotes</title>
+<link rel="stylesheet" href="estilo.css">
+<script src="preferencias.js"></script>
+<script src="modais.js"></script>
+<script src="pacotes.js"></script>
+<style>
+ /* Botão Menu flutuante no canto superior direito */
+ .menuw.fab{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:14px;z-index:40}
+ .fab>.btn{border-radius:999px;padding:10px 18px;box-shadow:0 6px 18px rgba(0,0,0,.28)}
+ main{padding-top:64px;max-width:1200px;margin:0 auto}
+ .cur-box{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+ .cur-box .ico{font-size:34px}
+ .sum{margin:10px 0;padding:12px 14px;border:1px solid var(--bd);border-radius:12px;background:var(--in)}
+ .sum div{display:flex;justify-content:space-between;gap:10px;margin:3px 0}
+</style>
+</head>
+<body class="pg-pacotes">
+<div class="menuw fab">
+  <button class="btn p" onclick="toggleMenu(event)" aria-haspopup="true" aria-label="Menu">☰</button>
+  <div class="menu" id="menu">
+    <button onclick="irPagamento()">Pagamento da garantia</button>
+    <button onclick="filtrar('');window.scrollTo({top:0,behavior:'smooth'})">Ver todos os pacotes</button>
+  </div>
+</div>
+
+<main>
+  <div id="deny" class="card hide" style="max-width:480px;margin:40px auto;text-align:center">
+    <b>Sem permissão</b><br><span>Só os administradores da empresa podem escolher o pacote.</span>
+  </div>
+
+  <div id="ok" class="hide">
+    <div class="card" id="atual"></div>
+    <div id="lista" class="pkroot"></div>
+    <p class="hint" style="margin-top:18px">Os preços estão em kwanzas (Kz). Durante o período grátis pode usar o sistema sem pagar. Depois, renova a garantia no módulo Pagamento. Pode mudar de pacote quando quiser, e o período grátis só é dado uma vez por empresa.</p>
+  </div>
+</main>
+
+<div class="ov" id="m"><div class="md" id="mb"></div></div>
+<div id="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const P=window.PACOTES;
+const KC='authvault.companies.v1',KU='authvault.users.v3',KS='authvault.session.v3';
+const esc=s=>(s??'').toString().replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const kz=v=>P.kz(v);
+const fmtD=iso=>iso?new Date(iso).toLocaleDateString('pt-PT'):'—';
+function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',3200)}
+const modal=h=>{$('mb').innerHTML=h;$('m').classList.add('on')},closeM=()=>$('m').classList.remove('on');
+function toggleMenu(e){e.stopPropagation();$('menu').classList.toggle('on')}
+document.addEventListener('click',()=>$('menu').classList.remove('on'));
+function irPagamento(){try{if(window.top!==window.self){window.top.location.hash='#pagamento';return}}catch(e){}location.href='14_Pagamento.html'}
+
+const rd=(k,def)=>{try{const v=JSON.parse(localStorage.getItem(k)||'null');return v??def}catch(e){return def}};
+let U=[],C=[],me=null,co=null,filtro='';
+function load(){
+  U=rd(KU,[]);C=rd(KC,[]);
+  if(!Array.isArray(U))U=[];if(!Array.isArray(C))C=[];
+  me=U.find(u=>u.id===Number(sessionStorage.getItem(KS))&&u.status==='Ativo')||null;
+  co=me&&me.companyId?C.find(c=>c.id===me.companyId):null;
+}
+const allowed=()=>!!me&&me.role==='Administrador'&&!!co;
+const filtrar=f=>{filtro=f;render()};
+
+function render(){
+  load();
+  const ok=allowed();
+  $('deny').classList.toggle('hide',ok);$('ok').classList.toggle('hide',!ok);
+  if(!ok)return;
+  const pk=co.pacote;
+  $('atual').innerHTML=pk
+    ?`<div class="cur-box"><span class="ico">${P.CATS[pk.cat]?P.CATS[pk.cat].icone:'📦'}</span><div><b>Pacote em uso: ${esc(pk.titulo)}</b><div class="hint">${esc(pk.nome)} · ${kz(pk.valor)} por ${esc(pk.un)} · garantia até ${fmtD(co.fim)}</div></div></div>`
+    :`<div class="cur-box"><span class="ico">📦</span><div><b>Escolha o pacote da sua empresa</b><div class="hint">Os módulos disponíveis dependem do pacote escolhido. Os primeiros dias são grátis.</div></div></div>`;
+  P.injetarCss();
+  $('lista').innerHTML=P.secoesHTML(filtro,co.pacote?co.pacote.id:null,'escolher','filtrar');
+}
+
+function escolher(id){
+  load();if(!allowed())return;
+  const p=P.get(id);if(!p)return;
+  const primeira=!co.pacote;
+  modal(`<h2>Escolher pacote</h2>
+  <p class="hint">${esc(p.catNome)} · ${p.nome} · ${p.cicloNome}</p>
+  <div class="sum">
+    <div><span>Preço</span><b>${kz(p.valor)} / ${p.un}</b></div>
+    <div><span>${primeira?'Período grátis':'Período grátis'}</span><b>${primeira?p.trial+' dias':'já utilizado'}</b></div>
+    ${primeira?`<div><span>Grátis até</span><b>${fmtD(new Date(Date.now()+p.trial*864e5))}</b></div>`:`<div><span>Garantia atual até</span><b>${fmtD(co.fim)}</b></div>`}
+  </div>
+  <p class="hint">${primeira?'Depois do período grátis, renova a garantia em Pagamento, ao preço deste pacote.':'A data da garantia não muda. A próxima renovação em Pagamento usa o preço deste pacote.'}${P.CATS[p.cat].breve?' Os módulos específicos deste pacote estão em preparação; já pode usar a faturação.':''}</p>
+  <div class="acts"><button class="btn" onclick="closeM()">Cancelar</button><button class="btn p" onclick="confirmar('${id}')">Confirmar pacote</button></div>`);
+}
+async function confirmar(id){
+  load();if(!allowed())return;
+  const p=P.get(id);if(!p)return;
+  try{const T=window.top.GS;if(!T)throw new Error('Sem ligação ao servidor. Abra a conta e tente de novo.');await T.escolherPacote(p);await T.entrar()}catch(e){return toast((window.top.GS&&window.top.GS.msg(e))||e.message||'Não foi possível guardar.')}
+  try{if(window.top!==window.self&&typeof window.top.render==='function')window.top.render()}catch(e){}   /* atualiza já o menu da conta */
+  closeM();render();toast('Pacote escolhido: '+p.catNome+' · '+p.cicloNome+'.');
+}
+
+document.documentElement.dataset.t=document.documentElement.dataset.t||localStorage.getItem('tema')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeM()});
+document.querySelectorAll('.ov').forEach(o=>o.addEventListener('mousedown',e=>{if(e.target===o)closeM()}));
+window.addEventListener('storage',e=>{if([KC,KU].includes(e.key))render()});
+render();
+</script>
+</body>
+</html>

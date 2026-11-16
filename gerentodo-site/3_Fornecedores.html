@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="pt-AO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fornecedores</title>
+<link rel="stylesheet" href="estilo.css">
+<script src="filtros.js" defer></script>
+<script src="preferencias.js"></script>
+<script src="modais.js"></script>
+<script src="escopo.js"></script>
+<style>
+ /* Botão Menu flutuante no canto superior direito */
+ .menuw.fab{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:14px;z-index:40}
+ .fab>.btn{border-radius:999px;padding:10px 18px;box-shadow:0 6px 18px rgba(0,0,0,.28)}
+ main{padding-top:64px}
+</style>
+</head>
+<body class="pg-fornecedores">
+<div class="menuw fab">
+  <button class="btn p" onclick="toggleMenu(event)" aria-haspopup="true">☰</button>
+  <div class="menu" id="menu">
+    <button onclick="openForm()">Cadastrar fornecedor</button>
+    <button onclick="openCompra()">Gerir compras</button>
+    <button onclick="openRel()">Gerir relatório</button>
+    <hr>
+    <button onclick="exportCSV()">Exportar CSV</button>
+  </div>
+</div>
+<script>
+function toggleMenu(e){e.stopPropagation();document.getElementById('menu').classList.toggle('on')}
+document.addEventListener('click',()=>document.getElementById('menu').classList.remove('on'));
+</script>
+<main>
+  <div class="filters">
+    <input id="fq" placeholder="Pesquisar nome, NIF, telefone, email, código" oninput="render()">
+    <select id="fc" onchange="render()"></select>
+    <select id="fp" onchange="render()"></select>
+    <select id="fpg" onchange="render()"><option value="">Condições de pagamento</option><option>Pronto pagamento</option><option>15 dias</option><option>30 dias</option><option>60 dias</option></select>
+    <select id="fe" onchange="render()"><option value="">Estado</option><option>Ativo</option><option>Inativo</option></select>
+    <button class="btn" onclick="clearF()">Limpar filtros</button>
+  </div>
+  <section class="cards" id="cards"></section>
+  <p class="hint" id="count"></p>
+  <div class="tw"><table><thead><tr id="thead"></tr></thead><tbody id="tb"></tbody></table></div>
+</main>
+
+<div class="ov sb" id="mForm"><div class="md">
+  <h2 id="fTitle">Cadastrar fornecedor</h2>
+  <label>Nome / Razão social *</label><input id="n"><div class="hint" id="nH"></div>
+  <div class="g2"><div><label>Nome comercial</label><input id="nc"></div><div><label>Tipo</label><select id="tp" onchange="tipoCh()"><option>Empresa</option><option>Particular</option></select></div></div>
+  <div class="g2"><div><label id="nifL">NIF *</label><input id="nif"></div><div><label>Pessoa de contacto</label><input id="pc"></div></div>
+  <label>Telefone * (vários, separados por vírgula)</label><input id="tel" placeholder="923 000 000, 931 000 000">
+  <div class="g2"><div><label>WhatsApp</label><input id="wa"></div><div><label>Email</label><input id="em" type="email"></div></div>
+  <div class="g2"><div><label>Província</label><input id="pv"></div><div><label>Município</label><input id="mu"></div></div>
+  <div class="g2"><div><label>Bairro</label><input id="bi"></div><div><label>Rua</label><input id="ru"></div></div>
+  <label>Website</label><input id="ws">
+  <label>Categorias que fornece</label><div id="cats"></div>
+  <div class="g2"><div><label>Prazo de entrega (dias)</label><input id="pe" type="number" min="0"></div><div><label>Condições de pagamento</label><select id="cp"><option>Pronto pagamento</option><option>15 dias</option><option>30 dias</option><option>60 dias</option></select></div></div>
+  <label>Dados bancários</label><div id="bk"></div><button class="btn" type="button" onclick="addBk()">Adicionar conta</button>
+  <label>Logótipo / imagem</label><input type="file" accept="image/*" onchange="loadImg(this)"><img id="imp" style="max-width:90px;margin-top:6px;border-radius:8px;display:none">
+  <label>Observações</label><textarea id="ob" rows="2"></textarea>
+  <div class="acts"><button class="btn" onclick="cancelForm()">Cancelar</button><button class="btn p" onclick="saveForm()">Salvar</button></div>
+</div></div>
+
+<div class="ov" id="mCompra"><div class="md">
+  <h2>Gerir compras</h2>
+  <label>Fornecedor *</label><select id="cf"></select>
+  <div class="g2"><div><label>Nº da guia ou fatura</label><input id="cg"></div><div><label>Data</label><input id="cd" type="date"></div></div>
+  <label>Produtos (nome, quantidade, custo unitário em Kz)</label><div id="lines"></div>
+  <button class="btn" onclick="addLine()">Adicionar produto</button>
+  <datalist id="dlp"></datalist>
+  <div class="hint" id="cTot"></div>
+  <div class="acts"><button class="btn" onclick="closeM('mCompra')">Cancelar</button><button class="btn p" onclick="doCompra()">Adicionar</button></div>
+</div></div>
+<div class="ov" id="mRel"><div class="md">
+  <h2>Gerir relatório</h2>
+  <label>Fornecedor</label><select id="rf"></select>
+  <div class="g2"><div><label>Categoria</label><select id="rc"></select></div><div><label>Província</label><select id="rp"></select></div></div>
+  <label>Estado</label><select id="re"><option value="">Todos</option><option>Ativo</option><option>Inativo</option></select>
+  <div class="g2"><div><label>Data inicial</label><input id="rd1" type="date"></div><div><label>Data final</label><input id="rd2" type="date"></div></div>
+  <p class="hint" id="rN"></p>
+  <div class="acts"><button class="btn d" onclick="descartarRel()">Descartar</button><button class="btn" onclick="outroFiltro()">Outro filtro</button><button class="btn p" onclick="finalizarRel()">Finalizar (PDF)</button></div>
+  <p class="hint">Abre a janela de impressão: escolha “Guardar como PDF” como destino.</p>
+</div></div>
+<div class="ov" id="mInfo"><div class="md" id="info"></div></div>
+<div id="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const FK='fornecedores_v1',PK='produtos_v2';
+let F=JSON.parse(localStorage.getItem(FK)||'{"f":[],"c":[]}');
+const P=()=>JSON.parse(localStorage.getItem(PK)||'{"p":[],"h":[]}');
+const saveF=()=>localStorage.setItem(FK,JSON.stringify(F));
+let sortK='id',sortD=1,editId=null,imgData='';
+const kz=v=>(Number(v)||0).toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2}).replace(/\u00a0/g,'.')+' Kz';
+const norm=s=>(s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const esc=s=>(s||'').toString().replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',2800)}
+const openM=id=>$(id).classList.add('on'),closeM=id=>$(id).classList.remove('on');
+const info=h=>{$('info').innerHTML=h;openM('mInfo')};
+const prodsOf=f=>P().p.filter(p=>norm(p.f)===norm(f.n));
+const total=f=>F.c.filter(c=>c.fid===f.id).reduce((s,c)=>s+c.q*c.cu,0);
+const cats=()=>[...new Set(P().p.map(p=>p.c).filter(Boolean))].sort();
+
+function render(){
+  const fill=(id,arr,first)=>{const e=$(id),v=e.value;e.innerHTML=`<option value="">${first}</option>`+arr.map(a=>`<option>${esc(a)}</option>`).join('');e.value=v};
+  fill('fc',cats(),'Categoria que fornece');fill('fp',[...new Set(F.f.map(f=>f.pv).filter(Boolean))].sort(),'Província');
+  const q=norm($('fq').value);
+  const r=F.f.filter(f=>(!q||norm([f.n,f.nc,f.nif,f.tel,f.em,f.ref].join(' ')).includes(q))&&(!$('fc').value||f.cats.includes($('fc').value))&&(!$('fp').value||f.pv===$('fp').value)&&(!$('fpg').value||f.cp===$('fpg').value)&&(!$('fe').value||($('fe').value==='Ativo')===f.ativo));
+  const val={nprod:f=>prodsOf(f).length,tot:total};
+  r.sort((a,b)=>{const x=val[sortK]?val[sortK](a):a[sortK],y=val[sortK]?val[sortK](b):b[sortK];return(typeof x==='number'?x-y:norm(x).localeCompare(norm(y),'pt',{numeric:true}))*sortD});
+  const C=[['id','ID'],['n','Nome'],['ref','Referência'],['nif','NIF'],['tel','Telefone'],['','Categorias'],['nprod','Nº de produtos'],['tot','Total comprado'],['ativo','Estado'],['','Ação']];
+  $('thead').innerHTML=C.map(([k,t])=>`<th ${k?`onclick="sortBy('${k}')"`:''}>${t}${sortK===k?(sortD>0?' ▲':' ▼'):''}</th>`).join('');
+  $('tb').innerHTML=r.map(f=>`<tr><td>${f.id}</td><td>${f.im?`<img src="${f.im}" style="width:30px;height:30px;border-radius:6px;vertical-align:middle;margin-right:6px">`:''}${esc(f.n)}</td><td>${f.ref}</td><td>${esc(f.nif)||'—'}</td><td>${esc(f.tel)}</td><td>${esc(f.cats.join(', '))||'—'}</td><td>${prodsOf(f).length}</td><td>${kz(total(f))}</td><td><span class="tg ${f.ativo?'':'r'}">${f.ativo?'Ativo':'Inativo'}</span></td><td><button class="btn" onclick="acao(${f.id})">Ação</button></td></tr>`).join('')||'<tr><td colspan="10" style="text-align:center;color:var(--mu);padding:24px">Nenhum fornecedor encontrado. Use “Cadastrar fornecedor” para começar.</td></tr>';
+  $('count').textContent=r.length+' de '+F.f.length+' fornecedores';
+  $('cards').innerHTML=[[F.f.length,'Total de fornecedores'],[F.f.filter(f=>f.ativo).length,'Fornecedores ativos'],[F.f.reduce((s,f)=>s+prodsOf(f).length,0),'Produtos fornecidos'],[kz(F.c.reduce((s,c)=>s+c.q*c.cu,0)),'Valor total comprado']].map(([a,b])=>`<div class="card"><b>${a}</b><span>${b}</span></div>`).join('');
+}
+function sortBy(k){sortD=sortK===k?-sortD:1;sortK=k;render()}
+function clearF(){['fq','fc','fp','fpg','fe'].forEach(i=>$(i).value='');render()}
+
+function tipoCh(){$('nifL').textContent=$('tp').value==='Empresa'?'NIF *':'NIF'}
+function addBk(b={}){const d=document.createElement('div');d.className='g2';d.style.marginBottom='6px';d.innerHTML=`<input placeholder="Banco" value="${esc(b.b)}"><input placeholder="Nº de conta" value="${esc(b.c)}"><input placeholder="IBAN" value="${esc(b.i)}" style="grid-column:1/-1">`;$('bk').appendChild(d)}
+function loadImg(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const i=new Image();i.onload=()=>{const k=Math.min(1,200/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*k;c.height=i.height*k;c.getContext('2d').drawImage(i,0,0,c.width,c.height);imgData=c.toDataURL('image/jpeg',.7);$('imp').src=imgData;$('imp').style.display='block'};i.src=r.result};r.readAsDataURL(f)}
+const FIELDS={n:'n',nc:'nc',tp:'tp',nif:'nif',pc:'pc',tel:'tel',wa:'wa',em:'em',pv:'pv',mu:'mu',bi:'bi',ru:'ru',ws:'ws',pe:'pe',cp:'cp',ob:'ob'};
+function openForm(f){
+  editId=f?f.id:null;imgData=f?.im||'';$('fTitle').textContent=f?'Editar fornecedor':'Cadastrar fornecedor';
+  for(const k in FIELDS)$(k).value=f?(f[k]??''):(k==='tp'?'Empresa':k==='cp'?'Pronto pagamento':'');
+  $('cats').innerHTML=cats().map(c=>`<label class="chk"><input type="checkbox" value="${esc(c)}" ${f?.cats.includes(c)?'checked':''}>${esc(c)}</label>`).join('')||'<span class="hint">Cadastre produtos com categorias para as poder escolher aqui.</span>';
+  $('bk').innerHTML='';(f?.bk?.length?f.bk:[{}]).forEach(addBk);
+  $('imp').src=imgData;$('imp').style.display=imgData?'block':'none';
+  document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));tipoCh();$('nH').textContent='';openM('mForm');$('n').focus();
+}
+const dirty=()=>['n','nif','tel','em'].some(i=>$(i).value);
+function cancelForm(){if(dirty()&&!confirm('Há dados preenchidos. Descartar e fechar?'))return;closeM('mForm')}
+$('n').addEventListener('input',()=>{$('nH').textContent=F.f.some(f=>norm(f.n)===norm($('n').value)&&f.id!==editId)?'Já existe um fornecedor com este nome.':''});
+function saveForm(){
+  document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));
+  const bad=['n','tel'].filter(i=>!$(i).value.trim());
+  const nif=$('nif').value.trim();
+  if($('tp').value==='Empresa'&&!nif)bad.push('nif');
+  if(nif&&F.f.some(f=>f.nif===nif&&f.id!==editId)){bad.push('nif');toast('Este NIF já existe.')}
+  const em=$('em').value.trim();if(em&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em))bad.push('em');
+  if(F.f.some(f=>norm(f.n)===norm($('n').value)&&f.id!==editId))bad.push('n');
+  if(bad.length){bad.forEach(i=>$(i).classList.add('err'));if($('toast').style.display!=='block')toast('Corrija os campos destacados.');return}
+  const d={};for(const k in FIELDS)d[k]=$(k).value.trim();
+  d.cats=[...$('cats').querySelectorAll('input:checked')].map(i=>i.value);
+  d.bk=[...$('bk').children].map(r=>{const i=r.querySelectorAll('input');return{b:i[0].value,c:i[1].value,i:i[2].value}}).filter(b=>b.b||b.c||b.i);
+  d.im=imgData;
+  if(editId)Object.assign(F.f.find(f=>f.id===editId),d),toast('Fornecedor atualizado.');
+  else{const id=F.f.reduce((m,f)=>Math.max(m,f.id),0)+1,dt=new Date();F.f.push({id,ref:'FOR-'+String(dt.getFullYear()).slice(2)+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(id).padStart(3,'0'),ativo:true,...d});toast('Fornecedor guardado com sucesso')}
+  saveF();closeM('mForm');render();
+}
+
+function addLine(){const d=document.createElement('div');d.className='ln';d.innerHTML='<input list="dlp" placeholder="Produto" oninput="cTot()"><input type="number" min="1" placeholder="Qtd" oninput="cTot()"><input type="number" min="0" step="0.01" placeholder="Custo" oninput="cTot()"><button class="btn d" onclick="this.parentNode.remove();cTot()">×</button>';$('lines').appendChild(d)}
+function cTot(){$('cTot').textContent='Total da compra: '+kz([...$('lines').children].reduce((s,l)=>{const i=l.querySelectorAll('input');return s+(+i[1].value||0)*(+i[2].value||0)},0))}
+function openCompra(id){
+  const at=F.f.filter(f=>f.ativo);if(!at.length)return toast('Cadastre um fornecedor ativo primeiro.');
+  $('cf').innerHTML=at.map(f=>`<option value="${f.id}">${esc(f.n)}</option>`).join('');if(id)$('cf').value=id;
+  $('dlp').innerHTML=P().p.map(p=>`<option value="${esc(p.n)}">`).join('');
+  $('cg').value='';$('cd').value=new Date().toISOString().slice(0,10);$('lines').innerHTML='';addLine();cTot();openM('mCompra');
+}
+function doCompra(){
+  const f=F.f.find(x=>x.id==$('cf').value),D=P(),out=[],ls=[];
+  for(const l of $('lines').children){const i=l.querySelectorAll('input');if(!i[0].value&&!i[1].value)continue;
+    const p=D.p.find(x=>norm(x.n)===norm(i[0].value)),q=+i[1].value,cu=+i[2].value;
+    if(!p)return toast('Produto não encontrado: '+i[0].value);if(!(q>0)||!(cu>=0)||i[2].value==='')return toast('Indique quantidade e custo de '+p.n+'.');ls.push({p,q,cu})}
+  if(!ls.length)return toast('Adicione pelo menos um produto.');
+  const dt=new Date().toLocaleString('pt-PT');
+  ls.forEach(({p,q,cu})=>{const ant=p.q;p.qa=ant;p.q+=q;p.cu=cu;p.f=f.n;
+    D.h.push({pid:p.id,tipo:'Entrada',qtd:q,data:dt,ts:Date.now(),us:((window.__who&&__who())||{}).name||'',motivo:'Compra '+(f.n)+' · guia '+($('cg').value||'—')});
+    F.c.push({fid:f.id,pid:p.id,pn:p.n,q,cu,g:$('cg').value,data:dt,d:$('cd').value});out.push(`<div class="hl"><b>${esc(p.n)}</b>: ${ant} + ${q} = ${p.q}</div>`)});
+  localStorage.setItem(PK,JSON.stringify(D));saveF();closeM('mCompra');render();
+  info(`<h2>Compra adicionada com sucesso</h2><p class="hint">Stock anterior + adicionado = stock atual</p>${out.join('')}<div class="acts"><button class="btn p" onclick="closeM('mInfo')">Fechar</button></div>`);
+}
+
+function acao(id){
+  info(`<h2>Ação</h2><button class="btn li" onclick="detalhe(${id})">Ver detalhe</button><button class="btn li" onclick="produtos(${id})">Produtos do fornecedor</button><button class="btn li" onclick="compras(${id})">Histórico de compras</button><button class="btn li" onclick="closeM('mInfo');openCompra(${id})">Nova compra</button><button class="btn li" onclick="closeM('mInfo');openForm(F.f.find(f=>f.id===${id}))">Editar</button><button class="btn li" onclick="contactar(${id})">Contactar</button><button class="btn li" onclick="toggle(${id})">Inativar / Ativar</button><button class="btn li d" onclick="eliminar(${id})">Eliminar</button><div class="acts"><button class="btn" onclick="closeM('mInfo')">Fechar</button></div>`);
+}
+const back=id=>`<div class="acts"><button class="btn" onclick="acao(${id})">Voltar</button></div>`;
+function detalhe(id){
+  const f=F.f.find(x=>x.id===id),r=[['Referência',f.ref],['Nome comercial',f.nc],['Tipo',f.tp],['NIF',f.nif],['Contacto',f.pc],['Telefone',f.tel],['WhatsApp',f.wa],['Email',f.em],['Endereço',[f.ru,f.bi,f.mu,f.pv].filter(Boolean).join(', ')],['Website',f.ws],['Categorias',f.cats.join(', ')],['Prazo de entrega',f.pe?f.pe+' dias':''],['Pagamento',f.cp],['Contas',f.bk.map(b=>`${b.b} ${b.c} ${b.i}`).join(' | ')],['Observações',f.ob],['Estado',f.ativo?'Ativo':'Inativo']];
+  info(`<h2>${esc(f.n)}</h2>${f.im?`<img src="${f.im}" style="max-width:100px;border-radius:8px">`:''}${r.map(([a,b])=>`<div class="hl"><span class="hint">${a}:</span> ${esc(b)||'—'}</div>`).join('')}${back(id)}`);
+}
+function produtos(id){const f=F.f.find(x=>x.id===id),l=prodsOf(f);info(`<h2>Produtos — ${esc(f.n)}</h2>${l.map(p=>`<div class="hl"><b>${esc(p.n)}</b> · stock ${p.q} ${p.um} · custo ${kz(p.cu)}</div>`).join('')||'<p class="hint">Nenhum produto ligado a este fornecedor.</p>'}${back(id)}`)}
+function compras(id,a='',b=''){
+  const f=F.f.find(x=>x.id===id),l=F.c.filter(c=>c.fid===id&&(!a||c.d>=a)&&(!b||c.d<=b)).reverse();
+  info(`<h2>Compras — ${esc(f.n)}</h2><div class="g2"><input type="date" value="${a}" onchange="compras(${id},this.value,'${b}')"><input type="date" value="${b}" onchange="compras(${id},'${a}',this.value)"></div>${l.map(c=>`<div class="hl">${c.data} · <b>${esc(c.pn)}</b> · ${c.q} × ${kz(c.cu)} · guia ${esc(c.g)||'—'}</div>`).join('')||'<p class="hint">Sem compras neste período.</p>'}${back(id)}`);
+}
+function contactar(id){
+  const f=F.f.find(x=>x.id===id),t=(f.tel.split(',')[0]||'').replace(/\s/g,''),w=(f.wa||t).replace(/\D/g,'');
+  info(`<h2>Contactar ${esc(f.n)}</h2><a class="btn li" href="tel:${t}">Ligar: ${esc(t)}</a><a class="btn li" target="_blank" href="https://wa.me/${w.length===9?'244'+w:w}">WhatsApp</a>${f.em?`<a class="btn li" href="mailto:${esc(f.em)}">Email: ${esc(f.em)}</a>`:''}${back(id)}`);
+}
+function toggle(id){const f=F.f.find(x=>x.id===id);f.ativo=!f.ativo;saveF();closeM('mInfo');render();toast(f.ativo?'Fornecedor ativado.':'Fornecedor inativado.')}
+function eliminar(id){
+  const f=F.f.find(x=>x.id===id),bl=prodsOf(f).length||F.c.some(c=>c.fid===id);
+  info(bl?`<h2>Não é possível eliminar</h2><p>Este fornecedor tem produtos ou compras associadas. Inative-o em vez de o apagar.</p><div class="acts"><button class="btn" onclick="closeM('mInfo')">Fechar</button><button class="btn p" onclick="toggle(${id})">Inativar</button></div>`:`<h2>Eliminar fornecedor</h2><p>Eliminar “${esc(f.n)}”?</p><div class="acts"><button class="btn" onclick="closeM('mInfo')">Cancelar</button><button class="btn d" onclick="F.f=F.f.filter(x=>x.id!==${id});saveF();closeM('mInfo');render();toast('Fornecedor eliminado.')">Eliminar</button></div>`);
+}
+let RF=[];
+const fmtD=d=>d?d.split('-').reverse().join('/'):'';
+function openRel(){
+  const fill=(id,arr,first)=>$(id).innerHTML=`<option value="">${first}</option>`+arr.map(a=>`<option>${esc(a)}</option>`).join('');
+  fill('rf',F.f.map(f=>f.n).sort(),'Todos');fill('rc',cats(),'Todas');fill('rp',[...new Set(F.f.map(f=>f.pv).filter(Boolean))].sort(),'Todas');
+  ['re','rd1','rd2'].forEach(i=>$(i).value='');RF=[];$('rN').textContent='';openM('mRel');
+}
+const curF=()=>({f:$('rf').value,c:$('rc').value,p:$('rp').value,e:$('re').value,d1:$('rd1').value,d2:$('rd2').value});
+const emptyF=x=>!Object.values(x).some(Boolean);
+function nomeF(x,i){
+  const per=x.d1||x.d2?(x.d1?fmtD(x.d1):'início')+' a '+(x.d2?fmtD(x.d2):'hoje'):'';
+  return`Filtro ${i}: `+([x.c,x.f,x.p,x.e,per].filter(Boolean).join(', ')||'Todos os fornecedores');
+}
+function outroFiltro(){
+  const x=curF();if(emptyF(x))return toast('Escolha pelo menos um filtro.');
+  RF.push(x);['rf','rc','rp','re','rd1','rd2'].forEach(i=>$(i).value='');
+  $('rN').textContent=RF.length+' filtro(s) adicionado(s).';
+}
+function descartarRel(){RF=[];['rf','rc','rp','re','rd1','rd2'].forEach(i=>$(i).value='');$('rN').textContent='';closeM('mRel')}
+function finalizarRel(){
+  const x=curF();if(!emptyF(x))RF.push(x);
+  if(!RF.length)return toast('Escolha pelo menos um filtro.');
+  const now=new Date(),h=now.toLocaleDateString('pt-PT'),hh=now.toLocaleString('pt-PT');
+  let gt=0,html='';
+  RF.forEach((x,i)=>{
+    const fs=F.f.filter(f=>(!x.f||f.n===x.f)&&(!x.c||f.cats.includes(x.c))&&(!x.p||f.pv===x.p)&&(!x.e||(x.e==='Ativo')===f.ativo));
+    let sub=0;
+    const rows=fs.map(f=>{
+      const t=F.c.filter(c=>c.fid===f.id&&(!x.d1||c.d>=x.d1)&&(!x.d2||c.d<=x.d2)).reduce((s,c)=>s+c.q*c.cu,0);sub+=t;
+      return`<tr><td>${f.ref}</td><td>${esc(f.n)}</td><td>${esc(f.nif)||'—'}</td><td>${esc(f.tel)}</td><td>${esc(f.pv)||'—'}</td><td>${esc(f.cp)}</td><td>${f.ativo?'Ativo':'Inativo'}</td><td class="r">${kz(t)}</td></tr>`}).join('')||'<tr><td colspan="8">Nenhum fornecedor neste filtro.</td></tr>';
+    gt+=sub;
+    html+=`<h3>${esc(nomeF(x,i+1))}</h3><table><thead><tr><th>Ref.</th><th>Nome</th><th>NIF</th><th>Telefone</th><th>Província</th><th>Pagamento</th><th>Estado</th><th>Total comprado</th></tr></thead><tbody>${rows}<tr class="s"><td colspan="7">Subtotal (${fs.length} fornecedores)</td><td class="r">${kz(sub)}</td></tr></tbody></table>`;
+  });
+  const w=window.open('','_blank');
+  if(!w)return toast('O navegador bloqueou a janela. Permita pop-ups e tente de novo.');
+  w.document.write(`<!DOCTYPE html><html lang="pt"><head><meta charset="utf-8"><title>Relatório de Fornecedores ${h.replace(/\//g,'-')}</title><style>body{font:12px "Segoe UI",Arial,sans-serif;color:#111;margin:24px}h1{font-size:18px;margin:0}h3{margin:20px 0 6px;font-size:13px}p{margin:2px 0 12px;color:#555}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #ccc;padding:5px 6px;text-align:left}th{background:#eef3f0}.r{text-align:right}.s td{font-weight:700;border-top:2px solid #333}@media print{@page{size:A4 landscape;margin:12mm}}</style></head><body><h1>Relatório de Fornecedores do dia ${h}</h1><p>Emitido em ${hh}</p>${html}<h3 style="text-align:right">Total geral: ${kz(gt)}</h3><script>onload=()=>setTimeout(()=>print(),300)<\/script></body></html>`);
+  w.document.close();RF=[];closeM('mRel');
+}
+function dl(n,t,ty){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:ty}));a.download=n;a.click()}
+function exportCSV(){const h=['ID','Nome','Referência','NIF','Telefone','Email','Província','Pagamento','Estado','Total comprado'];dl('fornecedores.csv','\ufeff'+[h,...F.f.map(f=>[f.id,f.n,f.ref,f.nif,f.tel,f.em,f.pv,f.cp,f.ativo?'Ativo':'Inativo',total(f)])].map(l=>l.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\n'),'text/csv')}
+function backup(){dl('fornecedores-backup-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify(F),'application/json')}
+function restore(i){const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.f||!d.c)throw 0;if(confirm('Substituir os dados atuais?')){F=d;saveF();render();toast('Dados importados.')}}catch(e){toast('Ficheiro inválido.')}};r.readAsText(f)}
+function toggleTheme(){const d=document.documentElement,t=d.dataset.t==='dark'?'light':'dark';d.dataset.t=t;localStorage.setItem('tema',t)}
+document.documentElement.dataset.t=localStorage.getItem('tema')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.ov.on').forEach(o=>o.id==='mForm'?cancelForm():closeM(o.id))});
+render();
+</script>
+</body>
+</html>

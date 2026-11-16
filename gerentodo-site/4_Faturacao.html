@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="pt-AO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Faturação</title>
+<link rel="stylesheet" href="estilo.css">
+<script src="filtros.js" defer></script>
+<script>
+/* Mostra no ecrã qualquer erro de JavaScript desta página (para diagnóstico) */
+window.addEventListener('error',function(e){
+  var d=document.getElementById('errBar');
+  if(!d){d=document.createElement('div');d.id='errBar';d.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:#b91c1c;color:#fff;padding:8px 12px;border-radius:8px;font:12px/1.4 monospace;white-space:pre-wrap;max-height:30vh;overflow:auto';
+    d.onclick=function(){d.remove()};(document.body||document.documentElement).appendChild(d)}
+  d.textContent+='Erro: '+e.message+' ('+String(e.filename||'').split('/').pop()+':'+e.lineno+')\n';
+  if(/(LS|loadF|TIPOS|modal) is not defined/.test(e.message)&&!/FALTA/.test(d.textContent))d.textContent+='FALTA o ficheiro faturacao-core.js: copie-o para a mesma pasta desta página e carregue com Ctrl+F5.\n';
+});
+</script>
+<script src="preferencias.js"></script>
+<script src="modais.js"></script>
+<script src="escopo.js"></script>
+<script src="faturacao-core.js"></script>
+<style>
+ /* Botão Menu flutuante no canto superior direito */
+ .menuw.fab{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:14px;z-index:40}
+ .fab>.btn{border-radius:999px;padding:10px 18px;box-shadow:0 6px 18px rgba(0,0,0,.28)}
+ main{padding-top:64px}
+
+ /* pesquisa de produtos em tempo real (só aparece ao digitar) */
+ .pr{margin-top:6px;border:1px solid var(--bd);border-radius:10px;max-height:230px;overflow:auto;background:var(--sf)}
+ .pr button{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;padding:9px 12px;border:0;border-bottom:1px solid var(--bd);background:transparent;color:inherit;text-align:left;cursor:pointer;font:inherit}
+ .pr button:hover{background:var(--ac2)}
+ .pr button span{color:var(--mu);font-size:12px;white-space:nowrap}
+ /* venda rápida */
+ .fabq{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:128px;z-index:40;border-radius:999px;padding:10px 16px;box-shadow:0 6px 18px rgba(0,0,0,.28)}
+ .qs-bk{position:fixed;inset:0;z-index:44;background:rgba(2,6,23,.45);display:none}.qs-bk.on{display:block}
+ .qs{position:fixed;top:0;right:0;bottom:0;z-index:45;width:min(430px,100vw);background:var(--sf);box-shadow:var(--sh);display:flex;flex-direction:column;transform:translateX(105%);transition:transform .25s}
+ .qs.on{transform:none}
+ .qs-h{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;padding-top:calc(12px + env(safe-area-inset-top,0px));border-bottom:1px solid var(--bd)}
+ .qs-x{width:36px;height:36px;padding:0;border:0;border-radius:50%;background:transparent;color:inherit;font:400 28px/1 sans-serif;cursor:pointer}
+ .qs-x:hover{background:rgba(127,127,127,.2)}
+ .qs-t{display:flex;justify-content:space-between;align-items:baseline;padding:12px 16px;background:var(--ac2)}
+ .qs-t b{font-size:calc(26px * var(--fs, 1))}
+ .qs-b{flex:1;overflow:auto;padding:12px 16px}
+ .qs-f{display:flex;gap:10px;padding:12px 16px;border-top:1px solid var(--bd)}
+ .qs-f .btn{flex:1;padding:12px}
+ .ql{display:grid;grid-template-columns:1fr auto;gap:4px 8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--bd)}
+ .ql .qq{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+ .ql .qq input{width:62px;text-align:center;padding:6px}
+</style>
+</head>
+<body class="pg-faturacao">
+<div class="menuw fab">
+  <button class="btn p" onclick="toggleMenu(event)" aria-haspopup="true">☰</button>
+  <div class="menu" id="menu">
+    <button onclick="openQS()">⚡ Venda rápida</button>
+    <button onclick="openTipos()">Emitir documento</button>
+    <button onclick="openPag()">Registar pagamento</button>
+    <button onclick="openRel()">Gerir relatório</button>
+    <button onclick="location.href='5_Documentos.html'">Documentos</button>
+    <button onclick="openDef()">Definições</button>
+    <hr>
+   
+  </div>
+</div>
+<script>
+function toggleMenu(e){e.stopPropagation();document.getElementById('menu').classList.toggle('on')}
+document.addEventListener('click',()=>document.getElementById('menu').classList.remove('on'));
+</script>
+<main>
+  <div class="filters">
+    <input id="fq" placeholder="Pesquisar nº, cliente, NIF" oninput="render()">
+    <select id="ft" onchange="render()"></select>
+    <select id="fe" onchange="render()"><option value="">Estado</option><option>Emitido</option><option>Parcialmente pago</option><option>Pago</option><option>Anulado</option></select>
+    <select id="fpd" onchange="render()"><option value="">Período</option><option value="1">Hoje</option><option value="7">Últimos 7 dias</option><option value="30">Últimos 30 dias</option><option value="90">Último trimestre</option><option value="365">Último ano</option></select>
+    <input id="fmin" type="number" min="0" placeholder="Valor mínimo" oninput="render()"><input id="fmax" type="number" min="0" placeholder="Valor máximo" oninput="render()">
+    <button class="btn" onclick="['fq','ft','fe','fpd','fmin','fmax'].forEach(i=>$(i).value='');render()">Limpar filtros</button>
+  </div>
+  <section class="cards" id="cards"></section>
+  <div class="cards" id="charts"></div>
+  <p class="hint" id="count"></p>
+  <div class="tw"><table><thead><tr><th>Nº</th><th>Tipo</th><th>Cliente</th><th>Data</th><th>Total</th><th>Dívida</th><th>Estado</th></tr></thead><tbody id="tb"></tbody></table></div>
+  <p class="hint">Mostra os 15 mais recentes. Todos os documentos e as ações (ver, enviar, duplicar, converter, anular) estão em Documentos.</p>
+</main>
+
+<div class="ov" id="ed"><div class="md w">
+  <h2 id="edT"></h2>
+  <div class="g2"><div><label>Cliente *</label><input id="cq" placeholder="Pesquisar cliente" oninput="cliSearch()"><select id="cs" size="4" onchange="cliPick()" style="margin-top:6px"></select></div>
+  <div><label>&nbsp;</label><div class="row"><button class="btn" onclick="cliFinal()">Cliente final</button><button class="btn" onclick="cliNovo()">Cadastrar novo cliente</button></div><div class="hint" id="ci"></div></div></div>
+  <div class="g3"><div><label>Data de emissão (automática)</label><input id="dt" disabled></div><div><label>Nº do documento</label><input id="dn" disabled value="Gerado ao finalizar"></div><div><label>Vencimento</label><select id="vs" onchange="$('vm').style.display=this.value==='Outro'?'block':'none'"></select><input id="vm" type="date" style="display:none;margin-top:6px"></div></div>
+  <div class="g3"><div><label>Forma de pagamento</label><select id="fp"></select></div><div><label>Departamento / vendedor</label><input id="dp" list="dld"></div><div><label>Observações</label><input id="ob"></div></div>
+  <datalist id="dld"></datalist>
+  <div id="boxI"><div class="row" style="justify-content:space-between;margin-top:14px;align-items:center"><b>Produtos</b><button class="btn" onclick="openProd()">Adicionar produto</button></div>
+  <div class="tw" style="margin-top:6px"><table><thead><tr><th>Produto</th><th>Preço</th><th>Qtd</th><th>Desconto</th><th>IVA</th><th>Subtotal</th><th></th></tr></thead><tbody id="ib"></tbody></table></div></div>
+  <div id="boxR" style="display:none"><label>Valor recebido (Kz) *</label><input id="rv" type="number" min="0" step="0.01" oninput="tot()"><label>Aplicar ao documento</label><select id="ra"></select></div>
+  <label class="chk" id="isL"><input type="checkbox" id="isn" onchange="tot()">Isento de IVA</label><select id="mis" style="display:none;margin-top:6px"></select>
+  <div id="tt" style="text-align:right;margin-top:12px"></div>
+  <div class="acts"><button class="btn" onclick="cancelEd()">Cancelar</button><button class="btn p" onclick="finalizar()">Finalizar</button></div>
+</div></div>
+
+<div class="ov" id="mP"><div class="md">
+  <h2>Adicionar produto</h2><input id="ps" placeholder="Pesquisar produto (nome, código)" oninput="prodSearch()"><input type="hidden" id="pl"><div id="pr" class="pr hide"></div><div class="hint" id="pI"></div>
+  <div class="g3"><div><label>Quantidade</label><input id="pq" type="number" min="1" value="1"></div><div><label>Preço (Kz)</label><input id="pp" type="number" min="0" step="0.01"></div><div><label>Desconto</label><div class="row" style="flex-wrap:nowrap"><input id="pdv" type="number" min="0" step="0.01"><select id="pdt" style="width:70px"><option>%</option><option>Kz</option></select></div></div></div>
+  <div class="g2"><div><label>IVA deste produto (%)</label><input id="piv" type="number" min="0" step="0.01"></div><span></span></div>
+  <div class="acts"><button class="btn" onclick="$('mP').classList.remove('on')">Cancelar</button><button class="btn p" onclick="addProd()">Adicionar</button></div>
+</div></div>
+<div class="ov" id="m"><div class="md" id="mb"></div></div>
+<div class="qs-bk" id="qsBk" onclick="closeQS()"></div>
+<aside class="qs" id="qs" aria-label="Venda rápida">
+  <div class="qs-h"><b>⚡ Venda rápida</b><button type="button" class="qs-x" onclick="closeQS()" aria-label="Fechar" title="Fechar">×</button></div>
+  <div class="qs-t"><span>Total da fatura</span><b id="qsTot">0,00 Kz</b></div>
+  <div class="qs-b">
+    <label for="qsCli">Nome do cliente</label><input id="qsCli" placeholder="Cliente final" autocomplete="off">
+    <label for="qsBusca">Produto (só produtos com preço)</label>
+    <input id="qsBusca" placeholder="Digite para pesquisar…" oninput="qsBuscar()" autocomplete="off">
+    <div id="qsRes" class="pr hide"></div>
+    <div id="qsLin" style="margin-top:10px"></div>
+    <label for="qsFp" style="margin-top:12px">Forma de pagamento</label><select id="qsFp"></select>
+  </div>
+  <div class="qs-f"><button type="button" class="btn" onclick="qsLimpar()">Cancelar</button><button type="button" class="btn p" onclick="qsFinalizar()">Finalizar</button></div>
+</aside>
+
+<div id="toast"></div>
+
+<script>
+let UI=LS.g('fat_ui',{v:true,c:true,p:true,f:true}),ND=null,editIdx=null,RF=[];
+const FATT=['FT','FR','ND'];
+const fat=d=>d.estado==='Anulado'?0:FATT.includes(d.tipo)?d.total:(d.tipo==='NC'&&!d.anulacao?-d.total:0);
+const sum=a=>a.reduce((s,d)=>s+fat(d),0);
+
+function filtered(){
+  const q=norm($('fq').value),pd=+$('fpd').value,since=pd?Date.now()-pd*864e5:0,mn=$('fmin').value,mx=$('fmax').value;
+  return F.docs.filter(d=>(!q||norm(d.num+' '+d.cli.n+' '+d.cli.nif).includes(q))&&(!$('ft').value||d.tipo===$('ft').value)&&(!$('fe').value||d.estado===$('fe').value)&&(!since||d.ts>=since)&&(mn===''||d.total>=+mn)&&(mx===''||d.total<=+mx));
+}
+function monthsAgo(n){const d=new Date();d.setMonth(d.getMonth()-n);return d.getTime()}
+function bars(l,f=kz){const mx=Math.max(...l.map(x=>Math.abs(x[1])),1);return l.map(([n,v])=>`<div style="font-size:13px;margin-top:6px">${esc(n)} · ${f(v)}<div style="height:8px;border-radius:4px;background:var(--ac);width:${Math.max(2,Math.abs(v)/mx*100)}%"></div></div>`).join('')||'<span class="hint">Sem dados.</span>'}
+/* ---------- quem emitiu: guarda o nome do utilizador no documento e nos movimentos de stock ---------- */
+function marcar(doc,t0){
+  try{
+    const w=window.__who&&window.__who();if(!w)return;
+    F=loadF();const d=F.docs.find(x=>x.id===doc.id);if(d){d.vend=w.name;d.vendId=w.id;saveF()}
+    const X=JSON.parse(localStorage.getItem('produtos_v2')||'null');
+    if(X&&Array.isArray(X.h)){let ch=false;X.h.forEach(h=>{if(h.ts>=t0&&!h.us){h.us=w.name;h.usId=w.id;ch=true}});if(ch)localStorage.setItem('produtos_v2',JSON.stringify(X))}
+  }catch(e){}
+}
+
+/* ---------- melhores vendedores ---------- */
+let RV=[];
+function vendRank(fl){const m={};fl.forEach(d=>{if(d.vend)m[d.vend]=(m[d.vend]||0)+fat(d)});return Object.entries(m).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,5)}
+function barsV(l){const mx=Math.max(...l.map(x=>x[1]),1);return l.map(([n,v],k)=>`<div style="font-size:13px;margin-top:6px"><a href="#" onclick="vendPer(${k});return false" style="font-weight:600;text-decoration:underline" title="Ver vendas por período">${esc(n)}</a> · ${kz(v)}<div style="height:8px;border-radius:4px;background:var(--ac);width:${Math.max(2,v/mx*100)}%"></div></div>`).join('')||'<span class="hint">Sem vendas com vendedor registado.</span>'}
+const PERS={h24:['Últimas 24 horas',()=>Date.now()-864e5],d7:['Últimos 7 dias',()=>Date.now()-7*864e5],m1:['Último mês',()=>monthsAgo(1)],m6:['Últimos 6 meses',()=>monthsAgo(6)]};
+function vendPer(k){
+  window._vn=RV[k][0];
+  modal(`<h2>Vendas de ${esc(_vn)}</h2><p class="hint">Escolha o período de venda:</p>${Object.entries(PERS).map(([c,[t]])=>`<button class="btn li" onclick="vendRes('${c}')">${t}</button>`).join('')}<div class="acts"><button class="btn" onclick="closeM()">Fechar</button></div>`);
+}
+function vendRes(c){
+  const n=window._vn,[t,fn]=PERS[c],since=fn();
+  const todos=F.docs.filter(d=>d.vend===n&&d.ts>=since),ds=todos.filter(d=>d.estado!=='Anulado'&&FATT.includes(d.tipo)).sort((a,b)=>b.ts-a.ts),tot=sum(todos);
+  modal(`<h2>${esc(n)} — ${t}</h2>
+  <p><b>Total vendido:</b> ${kz(tot)}<br><b>Documentos emitidos:</b> ${ds.length}<br><b>Média por documento:</b> ${kz(ds.length?tot/ds.length:0)}</p>
+  <div class="tw" style="max-height:240px;overflow:auto"><table><thead><tr><th>Nº</th><th>Cliente</th><th>Data</th><th>Total</th></tr></thead><tbody>${ds.slice(0,15).map(d=>`<tr><td>${d.num}</td><td>${esc(d.cli.n)}</td><td>${fmtD(d.dia)}</td><td>${kz(d.total)}</td></tr>`).join('')||'<tr><td colspan="4" class="hint" style="text-align:center;padding:14px">Sem vendas neste período.</td></tr>'}</tbody></table></div>
+  <div class="acts"><button class="btn" onclick="vendPer(RV.findIndex(x=>x[0]===window._vn))">Outro período</button><button class="btn p" onclick="closeM()">Fechar</button></div>`);
+}
+
+/* ---------- pesquisa de produto em tempo real (janela Adicionar produto) ---------- */
+function pickP(id){const p=P().p.find(x=>x.id==id);if(!p)return;$('pl').value=id;prodPick();$('ps').value=p.n;$('pr').classList.add('hide')}
+
+/* ---------- venda rápida ---------- */
+let QS=[];
+function openQS(){F=loadF();$('qsFp').innerHTML=FORMAS.map(f=>`<option>${esc(f)}</option>`).join('');qsDraw();$('qs').classList.add('on');$('qsBk').classList.add('on');setTimeout(()=>$('qsBusca').focus(),250)}
+function closeQS(){$('qs').classList.remove('on');$('qsBk').classList.remove('on')}
+function qsBuscar(){
+  const q=norm($('qsBusca').value),r=$('qsRes');
+  if(!q){r.innerHTML='';r.classList.add('hide');return}
+  const l=P().p.filter(p=>p.ativo!==false&&final(p)>0&&norm(p.n+' '+p.cb+' '+p.ref).includes(q)).slice(0,8);
+  r.innerHTML=l.map(p=>`<button type="button" onclick="qsAdd(${p.id})"><b>${esc(p.n)}</b><span>stock ${p.q} ${esc(p.um||'')} · ${kz(final(p))}</span></button>`).join('')||'<div class="hint" style="padding:10px">Nenhum produto com preço encontrado.</div>';
+  r.classList.remove('hide');
+}
+function qsAdd(id){
+  const p=P().p.find(x=>x.id===id);if(!p)return;
+  const it=QS.find(x=>x.pid===id),n=(it?it.q:0)+1;
+  if(n>p.q)return toast(`Stock insuficiente: disponível ${p.q} ${p.um||''}.`);
+  if(it)it.q=n;else QS.push({pid:p.id,n:p.n,q:1,pu:final(p),cu:p.cu,ivaT:LS.g('iva_produtos',{})[p.id]??F.cfg.iva});
+  $('qsBusca').value='';qsBuscar();qsDraw();$('qsBusca').focus();
+}
+function qsQ(i,v){
+  const q=Math.max(1,Math.floor(+v||1)),p=P().p.find(x=>x.id===QS[i].pid);
+  if(p&&q>p.q){toast(`Stock insuficiente: disponível ${p.q} ${p.um||''}.`);qsDraw();return}
+  QS[i].q=q;qsDraw();
+}
+function qsDel(i){QS.splice(i,1);qsDraw()}
+const qsCalc=()=>calc(QS.map(i=>({pid:i.pid,n:i.n,q:i.q,pu:i.pu,desc:0,dt:'%',cu:i.cu,ivaT:i.ivaT})),false);
+function qsDraw(){
+  const r=qsCalc();$('qsTot').textContent=kz(r.total);
+  $('qsLin').innerHTML=QS.map((i,k)=>`<div class="ql"><b>${esc(i.n)}</b><button type="button" class="btn s d" onclick="qsDel(${k})" aria-label="Remover" title="Remover">✕</button>
+    <div class="qq"><button type="button" class="btn s" onclick="qsQ(${k},${i.q-1})">−</button><input type="number" min="1" value="${i.q}" onchange="qsQ(${k},this.value)"><button type="button" class="btn s" onclick="qsQ(${k},${i.q+1})">+</button><span class="hint">× ${kz(i.pu)}</span></div>
+    <b style="text-align:right">${kz(r.L[k]?r.L[k].sub:i.pu*i.q)}</b></div>`).join('')||'<p class="hint">Pesquise um produto para começar.</p>';
+}
+function qsLimpar(){QS=[];$('qsCli').value='';$('qsBusca').value='';qsBuscar();if($('qsFp').options.length)$('qsFp').selectedIndex=0;qsDraw()}
+function qsFinalizar(){
+  if(!QS.length)return toast('Adicione pelo menos um produto.');
+  F=loadF();
+  if(!TIPOS.FR)return toast('O tipo Fatura/recibo não está disponível.');
+  const cf=getC().c.find(c=>c.final);if(!cf)return toast('Falta o “Cliente final” no cadastro de clientes.');
+  const nome=$('qsCli').value.trim()||cf.n,r=qsCalc(),t0=Date.now();
+  try{
+    const doc=emitir({tipo:'FR',cid:cf.id,cli:{n:nome,nif:cf.nif||'',end:'',tel:cf.tel||'',em:cf.em||''},itens:r.L,bruto:r.bruto,desc:r.desc,iva:r.iva,total:r.total,isento:false,motivoIsento:'',venc:today(),forma:$('qsFp').value,dep:'',obs:'Venda rápida',skipStock:undefined,pedido:undefined,aplicar:''});
+    marcar(doc,t0);render();window._ld=doc.id;qsLimpar();
+    modal(`<h2>Fatura/recibo ${doc.num} emitida</h2><p>Total: <b>${kz(doc.total)}</b>. O documento já ficou guardado em Documentos.<br>Deseja imprimir?</p><div class="acts"><button class="btn" onclick="closeM()">Cancelar</button><button class="btn p" onclick="closeM();viewDoc(F.docs.find(d=>d.id===_ld))">Imprimir</button></div>`);
+  }catch(e){toast('Não foi possível emitir: '+(e&&e.message||e))}
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('qs').classList.contains('on')&&!document.querySelector('.ov.on'))closeQS()});
+
+function render(){
+  F=loadF();
+  const t=$('ft'),tv=t.value;t.innerHTML='<option value="">Tipo de documento</option>'+Object.entries(TIPOS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');t.value=tv;
+  const now=new Date(),mes=F.docs.filter(d=>{const x=new Date(d.ts);return x.getMonth()===now.getMonth()&&x.getFullYear()===now.getFullYear()&&d.tipo!=='NC'||false}).length;
+  const S=ms=>sum(F.docs.filter(d=>d.ts>=ms));
+  $('cards').innerHTML=[[kz(S(Date.now()-864e5)),'Faturação do dia (24h)'],[kz(S(monthsAgo(3))),'Faturação do trimestre'],[kz(S(monthsAgo(6))),'Faturação do semestre'],[kz(S(monthsAgo(12))),'Faturação do ano'],[kz(F.docs.reduce((s,d)=>s+divida(d),0)),'Total em dívida'],[F.docs.filter(vencido).length,'Documentos vencidos'],[mes,'Documentos emitidos no mês']].map(([a,b])=>`<div class="card"><b>${a}</b><span>${b}</span></div>`).join('');
+  drawSw();
+  const fl=filtered(),ids=new Set(fl.map(d=>d.id)),ch=[];
+  if(UI.v){const m={};fl.forEach(d=>{const k=ymd(new Date(d.ts)).slice(0,7);m[k]=(m[k]||0)+fat(d)});ch.push(['Vendas por período',bars(Object.entries(m).sort().slice(-12).map(([k,v])=>[k.split('-').reverse().join('/'),v]))])}
+  if(UI.c){const m={};fl.forEach(d=>m[d.cli.n]=(m[d.cli.n]||0)+fat(d));ch.push(['Melhor cliente',bars(Object.entries(m).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,5))])}
+  if(UI.s!==false){RV=vendRank(fl);ch.push(['5 melhores vendedores',barsV(RV)])}
+  if(UI.p){const m={};fl.filter(d=>d.estado!=='Anulado'&&FATT.includes(d.tipo)).forEach(d=>d.itens.forEach(i=>m[i.n]=(m[i.n]||0)+i.q));ch.push(['Produtos mais vendidos',bars(Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,5),v=>v+' un')])}
+  if(UI.f){const m={};F.pg.filter(p=>ids.has(p.did)&&!p.estorno).forEach(p=>m[p.forma]=(m[p.forma]||0)+p.valor);ch.push(['Formas de pagamento',bars(Object.entries(m).sort((a,b)=>b[1]-a[1]))])}
+  $('charts').innerHTML=ch.map(([t,h])=>`<div class="card"><b style="font-size:15px">${t}</b>${h}</div>`).join('');
+  const l=fl.slice().sort((a,b)=>b.ts-a.ts).slice(0,15);
+  $('tb').innerHTML=l.map(d=>`<tr><td>${d.num}</td><td>${TIPOS[d.tipo]}</td><td>${esc(d.cli.n)}</td><td>${fmtD(d.dia)}</td><td>${kz(d.total)}</td><td class="${vencido(d)?'rd':''}">${kz(divida(d))}</td><td><span class="tg ${d.estado==='Anulado'?'r':''}">${d.estado}</span></td></tr>`).join('')||'<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--mu)">Nenhum documento emitido.</td></tr>';
+  $('count').textContent=fl.length+' de '+F.docs.length+' documentos';
+}
+window.onData=render;
+
+/* novo documento */
+function openTipos(){modal(`<h2>Tipo de documento</h2>${Object.entries(TIPOS).map(([k,v])=>`<button class="btn li" onclick="closeM();novo('${k}')">${v}</button>`).join('')}<div class="acts"><button class="btn" onclick="closeM()">Cancelar</button></div>`)}
+function novo(tipo,pre={}){
+  F=loadF();ND={tipo,cid:null,itens:pre.itens||[],skipStock:pre.skipStock,pedido:pre.pedido};
+  $('edT').textContent=TIPOS[tipo];$('dt').value=new Date().toLocaleDateString('pt-PT');
+  const vs=['24h','7 dias','14 dias','3 semanas',...Array.from({length:10},(_,i)=>(i+1)+(i?' meses':' mês')),'Anual','Outro'];
+  $('vs').innerHTML=vs.map(v=>`<option>${v}</option>`).join('');$('vm').style.display='none';$('vm').value='';
+  $('fp').innerHTML=FORMAS.map(f=>`<option>${f}</option>`).join('');$('dld').innerHTML=DEPS().map(d=>`<option value="${esc(d)}">`).join('');
+  $('dp').value=$('ob').value=$('cq').value='';$('rv').value='';$('isn').checked=false;$('ci').textContent='';
+  $('boxI').style.display=tipo==='RC'?'none':'block';$('boxR').style.display=tipo==='RC'?'block':'none';$('isL').style.display=tipo==='RC'?'none':'flex';
+  $('mis').innerHTML=F.cfg.isencoes.map(m=>`<option>${esc(m)}</option>`).join('');
+  cliSearch();if(pre.cid)pickCli(pre.cid);if(pre.obs)$('ob').value=pre.obs;drawI();$('ed').classList.add('on');
+}
+const cliAtivos=()=>getC().c.filter(c=>c.ativo);
+function cliSearch(){const q=norm($('cq').value);$('cs').innerHTML=cliAtivos().filter(c=>!q||norm(c.n+' '+c.nif+' '+c.tel).includes(q)).slice(0,30).map(c=>`<option value="${c.id}">${esc(c.n)}${c.nif?' · '+esc(c.nif):''}</option>`).join('')}
+function cliPick(){pickCli(+$('cs').value)}
+function pickCli(id){
+  const c=getC().c.find(x=>x.id===id);if(!c)return;ND.cid=id;
+  if(ND.tipo==='RC')$('ra').innerHTML='<option value="">Mais antigos primeiro (automático)</option>'+F.docs.filter(d=>d.cid===id&&divida(d)>0).map(d=>`<option value="${d.id}">${d.num} · dívida ${kz(divida(d))}</option>`).join('');
+  const dv=clientDivida(id);$('ci').innerHTML=`<b>${esc(c.n)}</b> · dívida ${kz(dv)}${c.lim?' · limite '+kz(c.lim):''}${clientVenc(id)?' · <span class="rd">dívida vencida</span>':''}`;
+  if(c.dsc&&ND.itens.length&&!ND.itens.some(i=>i.desc))ND.itens.forEach(i=>{i.desc=c.dsc;i.dt='%'});drawI();
+}
+function cliFinal(){pickCli(getC().c.find(c=>c.final).id)}
+function cliNovo(){
+  modal(`<h2>Cadastrar novo cliente</h2><label>Nome / Razão social *</label><input id="nc_n"><div class="g2"><div><label>NIF / BI</label><input id="nc_f"></div><div><label>Telefone *</label><input id="nc_t"></div></div><p class="hint">Para o formulário completo (endereço, crédito, etc.) use <a href="Clientes.html" target="_blank">Clientes.html</a>.</p><div class="acts"><button class="btn" onclick="closeM()">Cancelar</button><button class="btn p" onclick="saveCli()">Guardar</button></div>`);
+}
+function saveCli(){
+  const n=$('nc_n').value.trim(),t=$('nc_t').value.trim();if(!n||!t)return toast('Indique nome e telefone.');
+  const C=getC();if(C.c.some(c=>norm(c.n)===norm(n)))return toast('Já existe um cliente com este nome.');
+  const d=new Date(),id=C.c.reduce((m,c)=>Math.max(m,c.id),0)+1;
+  C.c.push({id,ref:'CLI-'+String(d.getFullYear()).slice(2)+String(d.getMonth()+1).padStart(2,'0')+'-'+String(C.c.filter(c=>!c.final).length+1).padStart(3,'0'),tp:'Particular',n,nif:$('nc_f').value.trim(),tel:t,cat:'Normal',cp:'Pronto pagamento',ativo:true,ts:Date.now(),pv:''});saveC(C);
+  closeM();cliSearch();pickCli(id);toast('Cliente guardado com sucesso');
+}
+/* produtos do documento */
+function openProd(i){
+  editIdx=i===undefined?null:i;const it=editIdx!==null?ND.itens[editIdx]:null;
+  $('ps').value=it?it.n:'';$('pq').value=it?it.q:1;$('pp').value=it?it.pu:'';$('pdv').value=it?it.desc:'';$('pdt').value=it?it.dt:'%';$('piv').value=it?(it.ivaT??F.cfg.iva):'';$('pI').textContent='';
+  prodSearch();if(it){$('pl').value=it.pid;prodPick(true);$('pr').classList.add('hide')}$('mP').classList.add('on');
+}
+function prodSearch(){
+  const q=norm($('ps').value),r=$('pr');
+  if(!q){r.innerHTML='';r.classList.add('hide');$('pl').value='';return}
+  const l=P().p.filter(p=>p.ativo!==false&&norm(p.n+' '+p.cb+' '+p.ref).includes(q)).slice(0,8);
+  r.innerHTML=l.map(p=>`<button type="button" onclick="pickP(${p.id})"><b>${esc(p.n)}</b><span>stock ${p.q} ${esc(p.um||'')} · ${kz(final(p))}</span></button>`).join('')||'<div class="hint" style="padding:10px">Nenhum produto encontrado.</div>';
+  r.classList.remove('hide');
+}
+function prodPick(keep){const p=P().p.find(x=>x.id==$('pl').value);if(!p)return;$('pI').textContent=`Stock disponível: ${p.q} ${p.um} · custo ${kz(p.cu)}`;if(!keep){$('pp').value=final(p);$('piv').value=LS.g('iva_produtos',{})[p.id]??F.cfg.iva;const c=getC().c.find(x=>x.id===ND.cid);if(c?.dsc){$('pdv').value=c.dsc;$('pdt').value='%'}}}
+function addProd(){
+  const p=P().p.find(x=>x.id==$('pl').value),q=+$('pq').value,pu=+$('pp').value;
+  if(!p)return toast('Escolha um produto.');if(!(q>0)||!(pu>=0)||$('pp').value==='')return toast('Indique quantidade e preço.');
+  const jaNaLinha=ND.itens.filter((x,i)=>x.pid===p.id&&i!==editIdx).reduce((s,x)=>s+x.q,0);
+  if(ABATE.includes(ND.tipo)&&!ND.skipStock&&q+jaNaLinha>p.q)return toast(`Stock insuficiente: disponível ${p.q} ${p.um||''} (já tem ${jaNaLinha} noutras linhas).`);
+  const ivaT=$('piv').value===''?F.cfg.iva:+$('piv').value,it={pid:p.id,n:p.n,q,pu,desc:+$('pdv').value||0,dt:$('pdt').value,cu:p.cu,ivaT};
+  const mp=LS.g('iva_produtos',{});if(ivaT!==F.cfg.iva)mp[p.id]=ivaT;else delete mp[p.id];LS.s('iva_produtos',mp);
+  editIdx!==null?ND.itens[editIdx]=it:ND.itens.push(it);$('mP').classList.remove('on');drawI();
+}
+function drawI(){
+  const r=calc(ND.itens,$('isn').checked);
+  $('ib').innerHTML=r.L.map((i,k)=>`<tr><td>${esc(i.n)}</td><td>${kz(i.pu)}</td><td>${i.q}</td><td>${i.desc?(i.dt==='Kz'?kz(i.desc):i.desc+'%'):'—'}</td><td>${kz(i.iva)}</td><td>${kz(i.sub)}</td><td><button class="btn s" onclick="openProd(${k})">Editar</button> <button class="btn s d" onclick="ND.itens.splice(${k},1);drawI()">Remover</button></td></tr>`).join('')||'<tr><td colspan="7" style="color:var(--mu)">Sem produtos.</td></tr>';
+  tot();
+}
+function curCalc(){const rc=ND.tipo==='RC';return calc(rc?[{n:'Pagamento recebido',q:1,pu:+$('rv').value||0,desc:0,dt:'%'}]:ND.itens,rc||$('isn').checked)}
+function tot(){
+  $('mis').style.display=$('isn').checked?'block':'none';const r=curCalc();
+  $('tt').innerHTML=`Subtotal: ${kz(r.bruto)} · Descontos: ${kz(r.desc)} · IVA: ${kz(r.iva)}<br><b style="font-size:18px">Total: ${kz(r.total)}</b>`;
+}
+function cancelEd(){if((ND.itens.length||ND.cid)&&!confirm('Há dados preenchidos. Descartar e fechar?'))return;$('ed').classList.remove('on')}
+function vencDate(){
+  const v=$('vs').value;if(v==='Outro')return $('vm').value||today();
+  if(v==='24h')return addDays(1);if(v==='7 dias')return addDays(7);if(v==='14 dias')return addDays(14);if(v==='3 semanas')return addDays(21);
+  if(v==='Anual')return addMonths(12);return addMonths(parseInt(v));
+}
+function finalizar(){
+  if(!ND.cid)return toast('Escolha o cliente.');
+  const rc=ND.tipo==='RC';if(rc?!(+$('rv').value>0):!ND.itens.length)return toast(rc?'Indique o valor recebido.':'Adicione pelo menos um produto.');
+  if($('vs').value==='Outro'&&!$('vm').value)return toast('Indique a data de vencimento.');
+  const c=getC().c.find(x=>x.id===ND.cid),r=curCalc(),av=[];
+  if(c.lim>0&&CRED.includes(ND.tipo)&&clientDivida(c.id)+r.total>c.lim)av.push('O cliente ultrapassa o limite de crédito ('+kz(c.lim)+').');
+  if(clientVenc(c.id))av.push('O cliente tem dívida vencida.');
+  ND.itens.filter(i=>i.cu&&i.pu*(1-(i.dt==='%'?i.desc/100:0))-(i.dt==='Kz'?i.desc/i.q:0)<i.cu).forEach(i=>av.push(`“${i.n}” está a ser vendido abaixo do custo.`));
+  modal(`<h2>Confirmar ${TIPOS[ND.tipo]}</h2><p><b>Cliente:</b> ${esc(c.n)}<br><b>Total:</b> ${kz(r.total)}<br><b>Desconto:</b> ${kz(r.desc)}<br><b>Vencimento:</b> ${fmtD(vencDate())}</p>${av.map(a=>`<p class="rd">⚠ ${a}</p>`).join('')}<div class="acts"><button class="btn" onclick="closeM()">Voltar</button><button class="btn p" onclick="doEmit()">${av.length?'Emitir mesmo assim':'Emitir'}</button></div>`);
+}
+function doEmit(){
+  const c=getC().c.find(x=>x.id===ND.cid),rc=ND.tipo==='RC',isento=rc||$('isn').checked,r=curCalc();
+  const t0=Date.now();
+  let doc;
+  try{doc=emitir({tipo:ND.tipo,cid:c.id,cli:{n:c.n,nif:c.nif||'',end:[c.ru,c.bi,c.mu,c.pv].filter(Boolean).join(', '),tel:c.tel,em:c.em||''},itens:r.L,bruto:r.bruto,desc:r.desc,iva:r.iva,total:r.total,isento,motivoIsento:isento?(rc?'Recibo':$('mis').value):'',venc:vencDate(),forma:$('fp').value,dep:$('dp').value.trim(),obs:$('ob').value.trim(),skipStock:ND.skipStock,pedido:ND.pedido,aplicar:rc?$('ra').value:''})}catch(e){closeM();return toast('Não foi possível emitir: '+(e&&e.message||e))}
+  marcar(doc,t0);
+  $('ed').classList.remove('on');render();
+  window._ld=doc.id;
+  modal(`<h2>${TIPOS[doc.tipo]} ${doc.num} emitida</h2><p>Guardada em Documentos. O que deseja fazer a seguir?</p><button class="btn li" onclick="enviar(_ld,'wa')">Enviar por WhatsApp</button><button class="btn li" onclick="enviar(_ld,'mail')">Enviar por e-mail</button><button class="btn li" onclick="savePDF(F.docs.find(d=>d.id===_ld).num,docHTML(F.docs.find(d=>d.id===_ld)))">Guardar em PDF</button><button class="btn li" onclick="viewDoc(F.docs.find(d=>d.id===_ld))">Imprimir</button><div class="acts"><button class="btn p" onclick="closeM()">Fechar (guardar sem enviar)</button></div>`);
+}
+
+/* relatório 4236 */
+const RIDS=['rc','rp','rk','rt','re','rf','rv2','r1','r2'];
+function drawSw(){const el=$('sw');if(!el)return;$('sw').innerHTML=[['v','Vendas por período'],['c','Melhor cliente'],['s','Melhores vendedores'],['p','Produtos mais vendidos'],['f','Formas de pagamento']].map(([k,t])=>`<label class="chk" style="margin:0"><input type="checkbox" ${(k==='s'?UI.s!==false:UI[k])?'checked':''} onchange="UI['${k}']=this.checked;LS.s('fat_ui',UI);render()">${t}</label>`).join('');}
+function openRel(){
+  F=loadF();const f=(id,a,t,v)=>$(id).innerHTML=`<option value="">${t}</option>`+a.map(x=>`<option ${v?`value="${x[0]}"`:''}>${esc(v?x[1]:x)}</option>`).join('');
+  modal(`<h2>Gerir relatório</h2><div class="g2"><div><label>Cliente</label><select id="rc"></select></div><div><label>Produto</label><input id="rp"></div></div><div class="g2"><div><label>Categoria</label><select id="rk"></select></div><div><label>Tipo de documento</label><select id="rt"></select></div></div><div class="g3"><div><label>Estado</label><select id="re"><option value="">Todos</option><option>Emitido</option><option>Parcialmente pago</option><option>Pago</option><option>Anulado</option></select></div><div><label>Forma de pagamento</label><select id="rf"></select></div><div><label>Vendedor</label><select id="rv2"></select></div></div><div class="g2"><div><label>Data inicial</label><input id="r1" type="date"></div><div><label>Data final</label><input id="r2" type="date"></div></div><b style="display:block;margin:10px 0 4px">Painéis do relatório (ativar / desativar)</b><div class="row" id="sw" style="margin-bottom:6px"></div><p class="hint" id="rN"></p><div class="acts"><button class="btn d" onclick="descartarRel()">Descartar</button><button class="btn" onclick="outroFiltro()">Outro filtro</button><button class="btn" onclick="finalizarRel(true)">Exportar CSV</button><button class="btn p" onclick="finalizarRel()">Finalizar (PDF)</button></div><p class="hint">O PDF é descarregado diretamente (precisa de internet para a biblioteca; sem ela abre a janela de impressão).</p>`);
+  f('rc',[...new Set(F.docs.map(d=>d.cli.n))].sort(),'Todos');f('rk',[...new Set(P().p.map(p=>p.c))].filter(Boolean).sort(),'Todas');f('rt',Object.entries(TIPOS),'Todos',1);f('rf',FORMAS,'Todas');drawSw();f('rv2',[...new Set(F.docs.map(d=>d.dep).filter(Boolean))].sort(),'Todos');RF=[];
+}
+const curF=()=>Object.fromEntries(RIDS.map(i=>[i,$(i).value.trim()]));
+const emptyF=x=>!Object.values(x).some(Boolean);
+function nomeF(x,i){const per=x.r1||x.r2?(x.r1?fmtD(x.r1):'início')+' a '+(x.r2?fmtD(x.r2):'hoje'):'';return`Filtro ${i}: `+([x.rt&&TIPOS[x.rt],x.rk,x.rc,x.rp&&'“'+x.rp+'”',x.re,x.rf,x.rv2,per].filter(Boolean).join(', ')||'Todos os documentos')}
+function outroFiltro(){const x=curF();if(emptyF(x))return toast('Escolha pelo menos um filtro.');RF.push(x);RIDS.forEach(i=>$(i).value='');$('rN').textContent=RF.length+' filtro(s) adicionado(s).'}
+function descartarRel(){RF=[];closeM()}
+function docsDe(x){
+  const cat={};P().p.forEach(p=>cat[p.id]=p.c);
+  return F.docs.filter(d=>(!x.rt||d.tipo===x.rt)&&(!x.rc||d.cli.n===x.rc)&&(!x.re||d.estado===x.re)&&(!x.rv2||d.dep===x.rv2)&&(!x.r1||d.dia>=x.r1)&&(!x.r2||d.dia<=x.r2)&&(!x.rf||d.forma===x.rf||F.pg.some(p=>p.did===d.id&&p.forma===x.rf))&&(!x.rp||d.itens.some(i=>norm(i.n).includes(norm(x.rp))))&&(!x.rk||d.itens.some(i=>cat[i.pid]===x.rk)));
+}
+function finalizarRel(csv){
+  const x0=curF();if(!emptyF(x0))RF.push(x0);if(!RF.length)return toast('Escolha pelo menos um filtro.');
+  if(csv){const rows=[['Nº','Tipo','Cliente','NIF','Data','Total','Descontos','IVA','Dívida','Estado']];RF.forEach(x=>docsDe(x).forEach(d=>rows.push([d.num,TIPOS[d.tipo],d.cli.n,d.cli.nif,fmtD(d.dia),d.total,d.desc,d.iva,divida(d),d.estado])));
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+rows.map(l=>l.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\n')],{type:'text/csv'}));a.download='vendas.csv';a.click();RF=[];closeM();return}
+  let T={v:0,d:0,i:0,dv:0},html='';
+  RF.forEach((x,i)=>{
+    const ds=docsDe(x);const s={v:ds.reduce((a,d)=>a+fat(d),0),d:ds.reduce((a,d)=>a+d.desc,0),i:ds.reduce((a,d)=>a+d.iva,0),dv:ds.reduce((a,d)=>a+divida(d),0)};
+    Object.keys(T).forEach(k=>T[k]+=s[k]);
+    html+=`<h3>${esc(nomeF(x,i+1))}</h3><table><thead><tr><th>Nº</th><th>Tipo</th><th>Cliente</th><th>Data</th><th class="r">Total</th><th class="r">Descontos</th><th class="r">IVA</th><th class="r">Dívida</th><th>Estado</th></tr></thead><tbody>${ds.map(d=>`<tr><td>${d.num}</td><td>${TIPOS[d.tipo]}</td><td>${esc(d.cli.n)}</td><td>${fmtD(d.dia)}</td><td class="r">${kz(d.total)}</td><td class="r">${kz(d.desc)}</td><td class="r">${kz(d.iva)}</td><td class="r">${kz(divida(d))}</td><td>${d.estado}</td></tr>`).join('')||'<tr><td colspan="9">Nenhum documento neste filtro.</td></tr>'}<tr class="s"><td colspan="4">Subtotal (${ds.length} documentos) · vendas ${kz(s.v)}</td><td></td><td class="r">${kz(s.d)}</td><td class="r">${kz(s.i)}</td><td class="r">${kz(s.dv)}</td><td></td></tr></tbody></table>`;
+  });
+  const c=F.cfg,h=new Date().toLocaleDateString('pt-PT');
+  savePDF('Relatório de Vendas '+h.replace(/\//g,'-'),`<div style="display:flex;gap:12px;align-items:center">${c.logo?`<img src="${c.logo}" style="max-height:50px">`:''}<div><b>${esc(c.emp)}</b><br>NIF ${esc(c.nif)} · ${esc(c.end)} · ${esc(c.tel)}</div></div><h1 style="font-size:18px">Relatório de Vendas do dia ${h}</h1><p>Emitido em ${new Date().toLocaleString('pt-PT')}</p>${html}<h3 style="text-align:right">Total de vendas: ${kz(T.v)} · Descontos: ${kz(T.d)} · IVA: ${kz(T.i)} · Dívida: ${kz(T.dv)}</h3>`,'body{font:12px "Segoe UI",Arial,sans-serif;margin:24px}h3{margin:18px 0 6px;font-size:13px}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #ccc;padding:5px 6px;text-align:left}th{background:#eef3f0}.r{text-align:right}.s td{font-weight:700;border-top:2px solid #333}@media print{@page{size:A4 landscape;margin:12mm}}',true);
+  RF=[];closeM();
+}
+
+/* definições (empresa) */
+let lg='';
+function openDef(){
+  F=loadF();const c=F.cfg;lg=c.logo;
+  modal(`<h2>Definições do ducumento da fatura da empresa</h2><div class="g2"><div><label>Nome</label><input id="e_emp" value="${esc(c.emp)}"></div><div><label>NIF</label><input id="e_nif" value="${esc(c.nif)}"></div></div><label>Endereço</label><input id="e_end" value="${esc(c.end)}"><div class="g2"><div><label>Telefone</label><input id="e_tel" value="${esc(c.tel)}"></div><div><label>Email</label><input id="e_em" value="${esc(c.em)}"></div></div>
+  <label>Logótipo</label><input type="file" accept="image/*" onchange="lgo(this)"><label>Contas bancárias (banco/agência · nº de conta · IBAN)</label><div id="e_bk"></div><button class="btn s" onclick="addBk()">Adicionar conta</button>
+  <div class="g2"><div><label>Modelo de fatura predefinido</label><select id="e_mod"><option value="1" ${c.modelo!==2?'selected':''}>Modelo 1 — clássico</option><option value="2" ${c.modelo===2?'selected':''}>Modelo 2 — moderno</option></select></div><div><label>Taxa de IVA (%)</label><input id="e_iva" type="number" min="0" step="0.01" value="${c.iva}"></div></div>
+  <label>Motivos de isenção de IVA (um por linha)</label><textarea id="e_is" rows="3">${esc(c.isencoes.join('\n'))}</textarea><label>Texto do rodapé</label><input id="e_rod" value="${esc(c.rodape)}">
+  <div class="acts"><button class="btn" onclick="closeM()">Cancelar</button><button class="btn p" onclick="saveDef()">Guardar</button></div>`);
+  (c.bancos.length?c.bancos:[{}]).forEach(addBk);
+}
+function addBk(b={}){const d=document.createElement('div');d.className='g3';d.style.marginBottom='6px';d.innerHTML=`<input placeholder="Banco / agência" value="${esc(b.b)}"><input placeholder="Nº de conta" value="${esc(b.c)}"><input placeholder="IBAN" value="${esc(b.i)}">`;$('e_bk').appendChild(d)}
+function lgo(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const i=new Image();i.onload=()=>{const k=Math.min(1,240/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*k;c.height=i.height*k;c.getContext('2d').drawImage(i,0,0,c.width,c.height);lg=c.toDataURL('image/png');toast('Logótipo carregado')};i.src=r.result};r.readAsDataURL(f)}
+function saveDef(){
+  const c=F.cfg;['emp','nif','end','tel','em'].forEach(k=>c[k]=$('e_'+k).value.trim());c.logo=lg;c.modelo=+$('e_mod').value;c.iva=+$('e_iva').value||0;c.isencoes=$('e_is').value.split('\n').map(s=>s.trim()).filter(Boolean);c.rodape=$('e_rod').value.trim();
+  c.bancos=[...$('e_bk').children].map(r=>{const i=r.querySelectorAll('input');return{b:i[0].value.trim(),c:i[1].value.trim(),i:i[2].value.trim()}}).filter(b=>b.b||b.c||b.i);
+  saveF();closeM();toast('Definições guardadas com sucesso');
+}
+
+/* entradas vindas de outros ficheiros */
+function boot(){
+  render();
+  const take=k=>{const v=LS.g(k,null);if(v)localStorage.removeItem(k);return v};
+  const pc=take('faturacao_cliente_pendente'),vp=take('vitrine_fatura_pendente'),pe=take('faturacao_pendente');
+  if(pe){const d=F.docs.find(x=>x.id===pe.from);if(d){novo(pe.tipo,{cid:d.cid,itens:d.itens.map(i=>({pid:i.pid,n:i.n,q:i.q,pu:i.pu,desc:i.desc,dt:i.dt,cu:i.cu,ivaT:i.ivaT})),obs:pe.tipo==='FT'&&pe.conv?'Convertido de '+d.num:d.obs,skipStock:!!(pe.conv&&d.stock&&ABATE.includes(d.tipo)&&ABATE.includes(pe.tipo))});return}}
+  if(vp){const C=getC(),tn=(vp.cliente.tel||'').replace(/\s/g,'');
+    const c=C.c.find(x=>!x.final&&(x.tel||'').replace(/\s/g,'').split(',').includes(tn))||C.c.find(x=>x.final);
+    const V=LS.g('vitrine_v1',{ped:[]}),ped=V.ped.find(o=>o.num===vp.pedido),X=P();
+    const tp=TIPOS[vp.tipo]?vp.tipo:'FT';
+    if(tp==='RC'){novo('RC',{cid:c.id,obs:'Pedido '+vp.pedido});$('rv').value=vp.total;ND.pedido=vp.pedido;$('ed').classList.add('on');return}
+    novo(tp,{cid:c.id,itens:vp.itens.map(i=>({pid:i.pid,n:i.n,q:i.q,pu:i.pu,desc:0,dt:'%',cu:(X.p.find(p=>p.id===i.pid)||{}).cu})),skipStock:!!(ped&&ped.abatido),pedido:vp.pedido,obs:'Pedido '+vp.pedido});
+    $('ed').classList.add('on');return}
+  if(pc){novo('FT',{cid:pc.id})}
+}
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="pt-AO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gestão de Gastos</title>
+<link rel="stylesheet" href="estilo.css">
+<script src="filtros.js" defer></script>
+<script src="preferencias.js"></script>
+<script src="modais.js"></script>
+<script src="escopo.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+ /* Botão Menu flutuante no canto superior direito */
+ .menuw.fab{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:14px;z-index:40}
+ .fab>.btn{border-radius:999px;padding:10px 18px;box-shadow:0 6px 18px rgba(0,0,0,.28)}
+ main{padding-top:64px}
+</style>
+</head>
+<body class="pg-gastos">
+<div class="menuw fab">
+  <button class="btn p" onclick="toggleMenu(event)" aria-haspopup="true" aria-label="Menu">☰</button>
+  <div class="menu" id="menu">
+    <button onclick="abrirModal()">Adicionar gasto</button>
+    <hr>
+    <button onclick="guardarFiltro()">Guardar filtro atual</button>
+    <button onclick="abrirModalFiltros()">Filtros guardados (<span id="contadorFiltros">0</span>)</button>
+    <button onclick="gerarRelatorioPDF()">Relatório PDF dos filtros</button>
+    <hr>
+    <button onclick="alternarGrafico()" id="btnGrafico">Ocultar gráfico</button>
+  </div>
+</div>
+
+<main>
+  <div class="filters">
+    <select id="filtroActividade"><option value="">Actividade</option></select>
+    <select id="filtroCategoria"><option value="">Categoria</option></select>
+    <select id="filtroSubcategoria"><option value="">Subcategoria</option></select>
+    <input id="dataInicioResumo" type="date" title="Data inicial">
+    <input id="dataFimResumo" type="date" title="Data final">
+    <input id="valorMinimoResumo" type="number" min="0" placeholder="Mínimo (Kz)">
+    <input id="valorMaximoResumo" type="number" min="0" placeholder="Máximo (Kz)">
+    <button class="btn" onclick="limparFiltroResumo()">Limpar filtros</button>
+  </div>
+
+  <section class="cards">
+    <div class="card"><b id="totalActividade">0</b><span>Actividades</span></div>
+    <div class="card"><b id="totalCategorias">0</b><span>Categorias</span></div>
+    <div class="card"><b id="totalSubCategorias">0</b><span>Subcategorias</span></div>
+    <div class="card"><b id="totalProdutos">0</b><span>Gastos registados</span></div>
+    <div class="card"><b id="periodo">--</b><span>Período</span></div>
+    <div class="card"><b id="totalGasto">0,00 Kz</b><span>Total gasto</span></div>
+  </section>
+
+  <div class="card" id="boxGraficoUnico" style="margin-bottom:16px">
+    <div class="filters" data-sf="off" style="margin-top:0">
+      <select id="tipoGrafico" title="Agrupar por"><option value="actividade">Por actividade</option><option value="categoria">Por categoria</option><option value="subcategoria">Por subcategoria</option></select>
+      <select id="periodoGrafico" title="Período do gráfico"><option value="diario">Diário</option><option value="mensal">Mensal</option><option value="trimestral">Trimestral</option><option value="semestral">Semestral</option><option value="anual">Anual</option></select>
+      <select id="itemGrafico" title="Item específico"><option value="">Todos os itens</option></select>
+    </div>
+    <div class="gr"><canvas id="graficoUnico"></canvas></div>
+    <p class="hint" id="semGrafico" style="display:none"></p>
+  </div>
+
+  <div class="bar">
+    <span class="hint" id="tituloTabela"></span>
+    <button class="btn" id="btnVerTodos" onclick="alternarTabela()">Mostrar todos</button>
+  </div>
+  <div class="tw"><table>
+    <thead><tr><th>Data</th><th>Produto</th><th style="text-align:center">Qtd</th><th style="text-align:right">Total (Kz)</th></tr></thead>
+    <tbody id="tabelaPrincipal"></tbody>
+  </table></div>
+</main>
+
+<!-- Novo gasto -->
+<div class="ov" id="modal"><div class="md">
+  <h2>Novo gasto</h2>
+  <label for="produto">Produto *</label><input id="produto">
+  <label for="actividadeSelect">Actividade *</label><select id="actividadeSelect" onchange="mostrarInput('actividadeInput',this.value)"></select>
+  <input type="text" id="actividadeInput" placeholder="Nova actividade" style="display:none;margin-top:6px">
+  <label for="categoriaSelect">Categoria *</label><select id="categoriaSelect" onchange="mostrarInput('categoriaInput',this.value)"></select>
+  <input type="text" id="categoriaInput" placeholder="Nova categoria" style="display:none;margin-top:6px">
+  <label for="subcategoriaSelect">Subcategoria *</label><select id="subcategoriaSelect" onchange="mostrarInput('subcategoriaInput',this.value)"></select>
+  <input type="text" id="subcategoriaInput" placeholder="Nova subcategoria" style="display:none;margin-top:6px">
+  <div class="g2">
+    <div><label for="qtd">Quantidade *</label><input id="qtd" type="number" min="0" step="any" oninput="previaTotal()"></div>
+    <div><label for="valor">Valor unitário (Kz) *</label><input id="valor" type="number" min="0" step="0.01" oninput="previaTotal()"></div>
+  </div>
+  <label for="data">Data *</label><input id="data" type="date">
+  <div class="hint" id="totalPrev"></div>
+  <div class="acts"><button class="btn" onclick="fecharModal()">Cancelar</button><button class="btn p" onclick="salvarGasto()">Salvar</button></div>
+</div></div>
+
+<!-- Filtros guardados -->
+<div class="ov" id="modalFiltrosSalvos"><div class="md">
+  <h2>Filtros guardados</h2>
+  <div id="listaFiltrosSalvos"></div>
+  <div class="acts"><button class="btn" onclick="fecharModalFiltros()">Fechar</button><button class="btn p" onclick="gerarRelatorioPDF()">Gerar PDF</button></div>
+</div></div>
+<div id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const escG = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',3000)}
+function toggleMenu(e){e.stopPropagation();$('menu').classList.toggle('on')}
+document.addEventListener('click',()=>$('menu').classList.remove('on'));
+const abrir = id => $(id).classList.add('on'), fechar = id => $(id).classList.remove('on');
+
+/* ================= ARMAZENAMENTO SEGURO ================= */
+function lerLS(chave, padrao){
+  try{ const v = JSON.parse(localStorage.getItem(chave)); return v == null ? padrao : v; }
+  catch(e){ return padrao; }
+}
+function gravarLS(chave, valor){
+  try{ localStorage.setItem(chave, typeof valor === 'string' ? valor : JSON.stringify(valor)); return true; }
+  catch(e){ toast('Não foi possível guardar (espaço cheio ou bloqueado pelo navegador).'); return false; }
+}
+/* Até aqui os gastos eram guardados sem separar por empresa. A primeira empresa que abrir
+   este módulo fica com esses dados antigos (uma só vez); as outras começam vazias. */
+(function(){
+  try{
+    if(!window.__empresa || localStorage.getItem('authvault.gastos.migrado.v1')) return;
+    ['gastos','filtrosSalvos','mostrarGrafico'].forEach(k=>{
+      const antigo = localStorage[k];                       /* acesso direto: ignora o prefixo da empresa */
+      if(antigo != null && localStorage.getItem(k) === null) localStorage.setItem(k, antigo);
+    });
+    localStorage.setItem('authvault.gastos.migrado.v1', String(window.__empresa));
+  }catch(e){}
+})();
+
+/* ================= VARIÁVEIS ================= */
+let gastos = lerLS('gastos', []); if(!Array.isArray(gastos)) gastos = [];
+let filtrosSalvos = lerLS('filtrosSalvos', []); if(!Array.isArray(filtrosSalvos)) filtrosSalvos = [];
+let graficoUnico = null, mostrarTodos = false;
+const dataInicioResumo=$('dataInicioResumo'), dataFimResumo=$('dataFimResumo'), valorMinimoResumo=$('valorMinimoResumo'), valorMaximoResumo=$('valorMaximoResumo');
+const filtroActividade=$('filtroActividade'), filtroCategoria=$('filtroCategoria'), filtroSubcategoria=$('filtroSubcategoria');
+const tabelaPrincipal=$('tabelaPrincipal');
+
+/* ================= UTIL ================= */
+const formatarNumero = v => new Intl.NumberFormat('pt-AO',{minimumFractionDigits:2,maximumFractionDigits:2}).format(v);
+const fmtD = s => s ? String(s).slice(0,10).split('-').reverse().join('/') : '';
+const ymd = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+/* ================= NOVO GASTO ================= */
+function atualizarCategorias(){
+  const un = k => [...new Set(gastos.map(g=>g[k]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt'));
+  const fill = (id, arr, vazio, outra) => { $(id).innerHTML = `<option value="">${vazio}</option>` + arr.map(c=>`<option value="${escG(c)}">${escG(c)}</option>`).join('') + `<option value="outra">${outra}</option>`; };
+  fill('actividadeSelect', un('actividade'), 'Escolha a actividade', 'Outra actividade…');
+  fill('categoriaSelect', un('categoria'), 'Escolha a categoria', 'Outra categoria…');
+  fill('subcategoriaSelect', un('subcategoria'), 'Escolha a subcategoria', 'Outra subcategoria…');
+}
+function mostrarInput(id, v){ $(id).style.display = v==='outra' ? 'block' : 'none'; if(v==='outra') $(id).focus(); }
+function previaTotal(){
+  const q=+$('qtd').value, v=+$('valor').value;
+  $('totalPrev').textContent = q>0 && v>=0 && $('valor').value!=='' ? 'Total: '+formatarNumero(q*v)+' Kz' : '';
+}
+function abrirModal(){
+  atualizarCategorias();
+  ['produto','actividadeInput','categoriaInput','subcategoriaInput','qtd','valor'].forEach(i=>$(i).value='');
+  ['actividadeInput','categoriaInput','subcategoriaInput'].forEach(i=>$(i).style.display='none');
+  $('data').value = ymd(new Date()); $('totalPrev').textContent='';
+  abrir('modal'); $('produto').focus();
+}
+function fecharModal(){ fechar('modal'); }
+function salvarGasto(){
+  const pick = (sel, inp) => ($(sel).value==='outra' ? $(inp).value : $(sel).value).trim();
+  const act = pick('actividadeSelect','actividadeInput'), cat = pick('categoriaSelect','categoriaInput'), sub = pick('subcategoriaSelect','subcategoriaInput');
+  const prod = $('produto').value.trim(), q = +$('qtd').value, v = +$('valor').value;
+  if(!act||!cat||!sub||!prod||$('qtd').value===''||$('valor').value===''||!$('data').value) return toast('Preencha todos os campos.');
+  if(!(q>0)) return toast('A quantidade tem de ser maior que zero.');
+  if(!(v>=0)) return toast('O valor unitário não pode ser negativo.');
+  gastos.push({id:Date.now(), actividade:act, categoria:cat, subcategoria:sub, produto:prod, qtd:q, valor:v, data:$('data').value, us:((window.__who&&__who())||{}).name||''});
+  if(!gravarLS('gastos', gastos)){ gastos.pop(); return; }
+  fecharModal(); atualizarFiltrosSelect(); carregarPrincipal(); toast('Gasto guardado com sucesso.');
+}
+
+/* ================= FILTRO ================= */
+function gastosFiltrados(){
+  const inicio = dataInicioResumo.value, fim = dataFimResumo.value;
+  const vMin = valorMinimoResumo.value !== '' ? Number(valorMinimoResumo.value) : null;
+  const vMax = valorMaximoResumo.value !== '' ? Number(valorMaximoResumo.value) : null;
+  const act = filtroActividade.value, cat = filtroCategoria.value, sub = filtroSubcategoria.value;
+  return gastos.filter(g => {
+    if (inicio && g.data < inicio) return false;
+    if (fim && g.data > fim) return false;
+    if (vMin !== null && g.valor < vMin) return false;
+    if (vMax !== null && g.valor > vMax) return false;
+    if (act && g.actividade !== act) return false;
+    if (cat && g.categoria !== cat) return false;
+    if (sub && g.subcategoria !== sub) return false;
+    return true;
+  });
+}
+[dataInicioResumo, dataFimResumo, valorMinimoResumo, valorMaximoResumo, filtroActividade, filtroCategoria, filtroSubcategoria].forEach(el => {
+  el.addEventListener(el.tagName === 'INPUT' ? 'input' : 'change', carregarPrincipal);
+});
+
+function atualizarFiltrosSelect(){
+  const un = k => [...new Set(gastos.map(g=>g[k]).filter(v=>v && String(v).trim()!==''))].sort((a,b)=>a.localeCompare(b,'pt'));
+  const refazer = (el, arr, todas) => {
+    const sel = el.value;
+    el.innerHTML = `<option value="">${todas}</option>` + arr.map(a=>`<option value="${escG(a)}">${escG(a)}</option>`).join('');
+    if (arr.includes(sel)) el.value = sel;
+  };
+  refazer(filtroActividade, un('actividade'), 'Actividade');
+  refazer(filtroCategoria, un('categoria'), 'Categoria');
+  refazer(filtroSubcategoria, un('subcategoria'), 'Subcategoria');
+}
+function limparFiltroResumo(){
+  [dataInicioResumo, dataFimResumo, valorMinimoResumo, valorMaximoResumo].forEach(e=>e.value='');
+  atualizarFiltrosSelect();
+  filtroActividade.value = filtroCategoria.value = filtroSubcategoria.value = '';
+  carregarPrincipal();
+}
+
+/* ================= RESUMO E TABELA ================= */
+function atualizarResumo(lista){
+  $('totalActividade').textContent = new Set(lista.map(g=>g.actividade)).size;
+  $('totalCategorias').textContent = new Set(lista.map(g=>g.categoria)).size;
+  $('totalSubCategorias').textContent = new Set(lista.map(g=>g.subcategoria)).size;
+  $('totalProdutos').textContent = lista.length;
+  $('totalGasto').textContent = formatarNumero(lista.reduce((s,g)=>s+(g.qtd*g.valor),0)) + ' Kz';
+  if(!lista.length){ $('periodo').textContent = '--'; return; }
+  const ds = lista.map(g=>g.data).sort();
+  $('periodo').textContent = fmtD(ds[0]) + ' – ' + fmtD(ds[ds.length-1]);
+}
+function carregarPrincipal(){
+  const lista = gastosFiltrados();
+  const ordenada = lista.slice().sort((a,b)=>b.id-a.id);
+  const vis = mostrarTodos ? ordenada : ordenada.slice(0,10);
+  tabelaPrincipal.innerHTML = vis.map(g=>`<tr>
+      <td>${escG(fmtD(g.data))}</td>
+      <td><b>${escG(g.produto)}</b><div class="sub">${escG(g.actividade)} › ${escG(g.categoria)} › ${escG(g.subcategoria)}</div></td>
+      <td style="text-align:center">${formatarNumero(g.qtd)}</td>
+      <td style="text-align:right;font-weight:600">${formatarNumero(g.qtd*g.valor)}</td>
+    </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--mu)">Nenhum gasto encontrado. Use Menu › Adicionar gasto.</td></tr>';
+  $('tituloTabela').textContent = !mostrarTodos && ordenada.length>10 ? `A mostrar os 10 mais recentes de ${ordenada.length} gastos` : `${vis.length} de ${gastos.length} gastos`;
+  $('btnVerTodos').textContent = mostrarTodos ? 'Mostrar só os 10 mais recentes' : 'Mostrar todos';
+  $('btnVerTodos').style.display = ordenada.length>10 || mostrarTodos ? '' : 'none';
+  atualizarResumo(lista);
+  atualizarSelectItemGrafico();
+  atualizarGraficoUnico();
+}
+function alternarTabela(){ mostrarTodos = !mostrarTodos; carregarPrincipal(); }
+
+/* ================= GRÁFICO ================= */
+function agruparPorPeriodo(lista, tipo, periodo){
+  const mapa = {};
+  lista.forEach(g=>{
+    const [y, m, d] = String(g.data).split('-').map(Number);
+    let chave;
+    switch(periodo){
+      case 'diario': chave = g.data; break;
+      case 'mensal': chave = `${y}-${String(m).padStart(2,'0')}`; break;
+      case 'trimestral': chave = `${y}-T${Math.floor((m-1)/3)+1}`; break;
+      case 'semestral': chave = `${y}-S${Math.floor((m-1)/6)+1}`; break;
+      default: chave = `${y}`;
+    }
+    const rotulo = g[tipo];
+    (mapa[rotulo] = mapa[rotulo] || {})[chave] = ((mapa[rotulo]||{})[chave]||0) + g.qtd*g.valor;
+  });
+  const periodos = [...new Set(Object.values(mapa).flatMap(o=>Object.keys(o)))].sort();
+  const cores = ['--ac','--ac-b','--ok','--or','--rd'].map(css);
+  const labels = Object.keys(mapa);
+  const datasets = labels.map((label,i)=>({
+    label, data: periodos.map(p=>mapa[label][p]||0),
+    borderColor: cores[i % cores.length], backgroundColor: cores[i % cores.length] + '22',
+    fill: labels.length === 1, tension: .3
+  }));
+  return { labels: periodos.map(p=>/^\d{4}-\d{2}-\d{2}$/.test(p)?fmtD(p):p), datasets };
+}
+function atualizarSelectItemGrafico(){
+  const tipo = $('tipoGrafico').value, sel = $('itemGrafico'), antes = sel.value;
+  const itens = [...new Set(gastosFiltrados().map(g=>g[tipo]))].sort((a,b)=>String(a).localeCompare(String(b),'pt'));
+  sel.innerHTML = '<option value="">Todos os itens</option>' + itens.map(i=>`<option value="${escG(i)}">${escG(i)}</option>`).join('');
+  if(itens.includes(antes)) sel.value = antes;
+}
+function atualizarGraficoUnico(){
+  const lista = gastosFiltrados(), tipo = $('tipoGrafico').value, per = $('periodoGrafico').value, item = $('itemGrafico').value;
+  const aviso = $('semGrafico');
+  if(graficoUnico){ graficoUnico.destroy(); graficoUnico = null; }
+  if(typeof Chart === 'undefined'){ aviso.textContent = 'Não foi possível carregar o gráfico (sem ligação à internet).'; aviso.style.display = 'block'; return; }
+  const dados = agruparPorPeriodo(item ? lista.filter(g=>g[tipo]===item) : lista, tipo, per);
+  aviso.style.display = dados.datasets.length ? 'none' : 'block';
+  aviso.textContent = dados.datasets.length ? '' : 'Sem dados para mostrar no gráfico.';
+  Chart.defaults.color = css('--mu'); Chart.defaults.borderColor = css('--bd');
+  graficoUnico = new Chart($('graficoUnico'), {
+    type: 'line', data: dados,
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+  });
+}
+$('tipoGrafico').addEventListener('change', () => { atualizarSelectItemGrafico(); atualizarGraficoUnico(); });
+$('periodoGrafico').addEventListener('change', atualizarGraficoUnico);
+$('itemGrafico').addEventListener('change', atualizarGraficoUnico);
+
+/* mostrar / ocultar gráfico */
+let grafVisivel = localStorage.getItem('mostrarGrafico') !== 'false';
+function aplicarGrafico(){ $('boxGraficoUnico').style.display = grafVisivel ? '' : 'none'; $('btnGrafico').textContent = grafVisivel ? 'Ocultar gráfico' : 'Mostrar gráfico'; if(grafVisivel) atualizarGraficoUnico(); }
+function alternarGrafico(){ grafVisivel = !grafVisivel; gravarLS('mostrarGrafico', String(grafVisivel)); aplicarGrafico(); }
+
+/* o gráfico acompanha o tema claro/escuro e a cor de destaque escolhidos */
+let rf = 0;
+new MutationObserver(()=>{ cancelAnimationFrame(rf); rf = requestAnimationFrame(()=>{ if(grafVisivel && graficoUnico) atualizarGraficoUnico(); }); })
+  .observe(document.documentElement, { attributes: true, attributeFilter: ['data-t','style'] });
+
+/* ================= FILTROS GUARDADOS ================= */
+function atualizarContadorFiltros(){ $('contadorFiltros').textContent = filtrosSalvos.length; }
+function textoFiltro(f, i){
+  const v = (f.valorMinimo ?? '') !== '' || (f.valorMaximo ?? '') !== '' ? ` | ${f.valorMinimo ?? '--'} a ${f.valorMaximo ?? '--'} Kz` : '';
+  return `Filtro ${i+1}: ${f.actividade || 'Todas as actividades'} | ${f.categoria || 'Todas as categorias'} | ${f.subcategoria || 'Todas as subcategorias'} | ${fmtD(f.inicio) || '--'} a ${fmtD(f.fim) || '--'}${v}`;
+}
+function abrirModalFiltros(){
+  const c = $('listaFiltrosSalvos');
+  c.innerHTML = filtrosSalvos.map((f,i)=>`<div class="hl"><span>${escG(textoFiltro(f,i))}</span><button class="btn s d" data-del="${i}">Excluir</button></div>`).join('')
+    || '<p class="hint">Nenhum filtro guardado. Use Menu › Guardar filtro atual.</p>';
+  abrir('modalFiltrosSalvos');
+}
+$('listaFiltrosSalvos').addEventListener('click', e => {
+  const b = e.target.closest('[data-del]'); if(!b) return;
+  if(!confirm('Deseja excluir este filtro?')) return;
+  filtrosSalvos.splice(+b.dataset.del, 1); gravarLS('filtrosSalvos', filtrosSalvos);
+  atualizarContadorFiltros(); abrirModalFiltros();
+});
+function fecharModalFiltros(){ fechar('modalFiltrosSalvos'); }
+function guardarFiltro(){
+  const n = {
+    inicio: dataInicioResumo.value || null, fim: dataFimResumo.value || null,
+    valorMinimo: valorMinimoResumo.value ? Number(valorMinimoResumo.value) : null,
+    valorMaximo: valorMaximoResumo.value ? Number(valorMaximoResumo.value) : null,
+    actividade: filtroActividade.value || null, categoria: filtroCategoria.value || null, subcategoria: filtroSubcategoria.value || null
+  };
+  if(!n.inicio && !n.fim && n.valorMinimo === null && n.valorMaximo === null && !n.actividade && !n.categoria && !n.subcategoria) return toast('Escolha pelo menos um filtro antes de guardar.');
+  if(filtrosSalvos.some(f => JSON.stringify(f) === JSON.stringify(n))) return toast('Este filtro já foi guardado.');
+  filtrosSalvos.push(n); gravarLS('filtrosSalvos', filtrosSalvos);
+  atualizarContadorFiltros(); toast('Filtro guardado.'); abrirModalFiltros();
+}
+
+/* ================= RELATÓRIO PDF ================= */
+function gerarRelatorioPDF(){
+  if(!filtrosSalvos.length) return toast('Não há filtros guardados para gerar o relatório.');
+  if(!window.jspdf || !window.jspdf.jsPDF) return toast('Não foi possível carregar o gerador de PDF (sem ligação à internet).');
+  const { jsPDF } = window.jspdf, doc = new jsPDF({ orientation: 'landscape' });
+  const ac = (css('--ac').match(/^#([0-9a-f]{6})$/i) ? [1,3,5].map(i=>parseInt(css('--ac').slice(i,i+2),16)) : [124,58,237]);
+  doc.setFontSize(18); doc.text('RELATÓRIO GERAL DE GASTOS', 105, 15, { align: 'center' });
+  doc.setFontSize(10); doc.text('Gerado em: ' + new Date().toLocaleString('pt-PT'), 14, 25);
+  let posY = 35;
+  filtrosSalvos.forEach((f, index) => {
+    const lista = gastos.filter(g => {
+      if (f.inicio && g.data < f.inicio) return false;
+      if (f.fim && g.data > f.fim) return false;
+      if (f.valorMinimo !== null && f.valorMinimo !== '' && g.valor < f.valorMinimo) return false;
+      if (f.valorMaximo !== null && f.valorMaximo !== '' && g.valor > f.valorMaximo) return false;
+      if (f.actividade && g.actividade !== f.actividade) return false;
+      if (f.categoria && g.categoria !== f.categoria) return false;
+      if (f.subcategoria && g.subcategoria !== f.subcategoria) return false;
+      return true;
+    });
+    if (index !== 0) { doc.addPage(); posY = 20; }
+    doc.setFontSize(11); doc.setFont(undefined, 'bold');
+    doc.text(textoFiltro(f, index).replace(/^Filtro/, 'Relatório'), 14, posY);
+    doc.setFont(undefined, 'normal'); posY += 8;
+    let total = 0;
+    const corpo = lista.map(g => { const t = g.qtd * g.valor; total += t; return [fmtD(g.data), g.actividade, g.categoria, g.subcategoria, g.produto, formatarNumero(g.qtd), formatarNumero(g.valor), formatarNumero(t)]; });
+    doc.autoTable({
+      startY: posY, head: [['Data','Actividade','Categoria','Subcategoria','Produto','Qtd','Valor unit.','Total']], body: corpo,
+      theme: 'grid', margin: { left: 14, right: 14 }, styles: { fontSize: 8, cellPadding: 3, overflow: 'linebreak' },
+      headStyles: { fillColor: ac, textColor: 255, fontStyle: 'bold', halign: 'center' },
+      columnStyles: { 5: { halign: 'center' }, 6: { halign: 'right' }, 7: { halign: 'right' } },
+      alternateRowStyles: { fillColor: [248, 250, 252] }
+    });
+    doc.setFontSize(11); doc.setFont(undefined, 'bold');
+    doc.text(`Total do relatório ${index + 1}: ${formatarNumero(total)} Kz`, 14, doc.lastAutoTable.finalY + 8);
+    doc.setFont(undefined, 'normal');
+  });
+  doc.save('Relatorio_Geral_Gastos.pdf');
+}
+
+/* ================= EVENTOS GERAIS ================= */
+document.addEventListener('keydown', e => { if(e.key === 'Escape'){ fecharModal(); fecharModalFiltros(); } });
+document.querySelectorAll('.ov').forEach(o => o.addEventListener('mousedown', e => { if(e.target === o) o.classList.remove('on'); }));
+window.addEventListener('storage', e => {
+  if(e.key === 'gastos'){ gastos = lerLS('gastos', []); if(!Array.isArray(gastos)) gastos = []; atualizarFiltrosSelect(); carregarPrincipal(); }
+  if(e.key === 'filtrosSalvos'){ filtrosSalvos = lerLS('filtrosSalvos', []); if(!Array.isArray(filtrosSalvos)) filtrosSalvos = []; atualizarContadorFiltros(); }
+});
+document.documentElement.dataset.t = document.documentElement.dataset.t || localStorage.getItem('tema') || (matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light');
+
+/* ================= INÍCIO ================= */
+atualizarFiltrosSelect(); atualizarContadorFiltros(); aplicarGrafico(); carregarPrincipal();
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+</body>
+</html>

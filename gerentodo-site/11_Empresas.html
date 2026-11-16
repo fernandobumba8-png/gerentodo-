@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pt-AO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Empresas</title>
+<link rel="stylesheet" href="estilo.css">
+<script src="filtros.js" defer></script>
+<script src="preferencias.js"></script>
+<script src="modais.js"></script>
+<style>
+ /* Botão Menu flutuante no canto superior direito */
+ .menuw.fab{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:14px;z-index:40}
+ .fab>.btn{border-radius:999px;padding:10px 18px;box-shadow:0 6px 18px rgba(0,0,0,.28)}
+ main{padding-top:64px}
+ .tw table{min-width:1700px}
+ .lg{width:34px;height:34px;border-radius:8px;object-fit:cover;background:var(--ac2);display:inline-grid;place-items:center;font-weight:700;color:var(--ac);vertical-align:middle}
+ .big{width:72px;height:72px;font-size:28px;border-radius:14px}
+</style>
+</head>
+<body class="pg-empresas">
+<div class="menuw fab">
+  <button class="btn p" onclick="toggleMenu(event)" aria-haspopup="true">☰</button>
+  <div class="menu" id="menu">
+    <button onclick="listPay()">Pagamentos recebidos</button>
+    <button onclick="cfgPay()">Definições de pagamento</button>
+    <button onclick="exportCSV()">Exportar CSV</button>
+    <hr>
+    <button onclick="tema()">Claro/Escuro</button>
+  </div>
+</div>
+<main>
+  <div class="filters">
+    <input id="fq" placeholder="Pesquisar empresa, NIF, contacto, e-mail, administrador" oninput="render()">
+    <select id="fe" onchange="render()"><option value="">Estado da garantia</option><option>Ativa</option><option>A expirar</option><option>Expirada</option></select>
+    <select id="fg" onchange="render()"></select>
+    <button class="btn" onclick="['fq','fe','fg'].forEach(i=>$(i).value='');render()">Limpar filtros</button>
+  </div>
+  <section class="cards" id="cards"></section>
+  <p class="hint" id="count"></p>
+  <div class="tw"><table>
+    <thead><tr>
+      <th>ID</th><th>Logo</th><th>Empresa</th><th>NIF</th><th>Contacto 1</th><th>Contacto 2</th><th>E-mail</th>
+      <th>Nacionalidade</th><th>Província</th><th>Endereço</th><th>Administrador</th><th>Cadastro</th>
+      <th>Garantia</th><th>Valor</th><th>Início</th><th>Expira em</th><th>Estado</th><th></th>
+    </tr></thead>
+    <tbody id="tb"></tbody>
+  </table></div>
+  <p class="hint">As empresas são cadastradas no ecrã de entrada (“Cadastrar nova empresa”). Cada empresa começa com 30 dias de teste grátis; depois a garantia é renovada aqui.</p>
+</main>
+
+<div class="ov" id="m"><div class="md" id="mb"></div></div>
+<div id="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const KC='authvault.companies.v1',KU='authvault.users.v3',PAY='authvault.pagamentos.v1',CFG='authvault.paycfg.v1';
+const METODOS={express:'Multicaixa Express',paypay:'PayPay'};
+
+/* Garantia: teste grátis de 30 dias ou planos pagos (valores em Kz) */
+const PLANOS={
+  gratis:{n:'Grátis (30 dias)',v:0,d:30},
+  '1m':{n:'1 mês',v:12000,m:1},
+  '2m':{n:'2 meses',v:22500,m:2},
+  '3m':{n:'3 meses',v:33000,m:3},
+  '6m':{n:'6 meses',v:62000,m:6},
+  '1a':{n:'1 ano',v:120000,m:12}
+};
+function addPlano(from,k){const d=new Date(from),p=PLANOS[k];if(p.d)d.setDate(d.getDate()+p.d);else{const dia=d.getDate();d.setDate(1);d.setMonth(d.getMonth()+p.m);d.setDate(Math.min(dia,new Date(d.getFullYear(),d.getMonth()+1,0).getDate()))}return d}
+
+const esc=s=>(s??'').toString().replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm=s=>(s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const kz=v=>(Number(v)||0).toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2}).replace(/\u00a0/g,'.')+' Kz';
+const fmtD=iso=>iso?new Date(iso).toLocaleDateString('pt-PT'):'—';
+const fmtDT=iso=>iso?new Date(iso).toLocaleString('pt-PT',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—';
+function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',3000)}
+const modal=h=>{$('mb').style.maxWidth='';$('mb').innerHTML=h;$('m').classList.add('on')},closeM=()=>$('m').classList.remove('on');
+
+function toggleMenu(e){e.stopPropagation();$('menu').classList.toggle('on')}
+document.addEventListener('click',()=>$('menu').classList.remove('on'));
+
+let C=[],U=[],R=[],CF={};
+function load(){
+  try{C=JSON.parse(localStorage.getItem(KC)||'[]');U=JSON.parse(localStorage.getItem(KU)||'[]');R=JSON.parse(localStorage.getItem(PAY)||'[]');CF=JSON.parse(localStorage.getItem(CFG)||'{}')||{}}catch(e){C=[];U=[];R=[];CF={}}
+  if(!Array.isArray(C))C=[];if(!Array.isArray(U))U=[];if(!Array.isArray(R))R=[];
+}
+const save=()=>{try{localStorage.setItem(KC,JSON.stringify(C))}catch(e){toast('Erro ao gravar dados.')}};
+
+/* Estado da garantia */
+function estado(c){
+  const dias=(new Date(c.fim)-Date.now())/864e5;
+  return dias<0?'Expirada':dias<=7?'A expirar':'Ativa';
+}
+const tagCls=e=>e==='Expirada'?'r':e==='A expirar'?'o':'';
+/* Administrador: dados atuais da tabela de utilizadores (ou o que ficou guardado no cadastro) */
+function admin(c){
+  const u=U.find(x=>x.id===c.adminId);
+  return{nome:u?u.name:c.adminNome,tel:u?u.phone:c.adminTel,email:u?u.email:c.adminEmail,foto:u?u.avatar:'',ativo:u?u.status==='Ativo':false,existe:!!u};
+}
+const logo=(c,cls='')=>c.logo?`<img class="lg ${cls}" src="${esc(c.logo)}" alt="">`:`<span class="lg ${cls}">${esc((c.nome||'?')[0].toUpperCase())}</span>`;
+
+function render(){
+  load();
+  const g=$('fg'),gv=g.value;
+  g.innerHTML='<option value="">Garantia</option>'+Object.entries(PLANOS).map(([k,p])=>`<option value="${k}">${p.n}</option>`).join('');g.value=gv;
+  const q=norm($('fq').value),fe=$('fe').value,fg=$('fg').value;
+  const r=C.filter(c=>{const a=admin(c);return(!q||norm([c.nome,c.nif,c.tel1,c.tel2,c.email,c.nacionalidade,c.provincia,c.endereco,a.nome,a.tel,a.email].join(' ')).includes(q))&&(!fe||estado(c)===fe)&&(!fg||c.plano===fg)}).sort((a,b)=>b.id-a.id);
+  $('tb').innerHTML=r.map(c=>{const a=admin(c),e=estado(c);return`<tr>
+    <td class="mono">${c.id}</td>
+    <td>${logo(c)}</td>
+    <td><b>${esc(c.nome)}</b></td>
+    <td>${esc(c.nif)}</td>
+    <td>${esc(c.tel1)}</td>
+    <td>${esc(c.tel2)||'—'}</td>
+    <td>${esc(c.email)||'—'}</td>
+    <td>${esc(c.nacionalidade)}</td>
+    <td>${esc(c.provincia)||'—'}</td>
+    <td>${esc(c.endereco)||'—'}</td>
+    <td><b>${esc(a.nome)}</b><div class="sub">${esc(a.tel)}${a.email?' · '+esc(a.email):''}</div></td>
+    <td>${fmtD(c.criadoEm)}</td>
+    <td><span class="tg">${PLANOS[c.plano]?PLANOS[c.plano].n:esc(c.plano)}</span></td>
+    <td>${c.valor?kz(c.valor):'Grátis'}</td>
+    <td>${fmtD(c.inicio)}</td>
+    <td>${fmtD(c.fim)}</td>
+    <td><span class="tg ${tagCls(e)}">${e}</span></td>
+    <td><button class="btn s" onclick="acao(${c.id})">Ação</button></td>
+  </tr>`}).join('')||'<tr><td colspan="18" style="text-align:center;padding:24px;color:var(--mu)">Nenhuma empresa. Use “Cadastrar nova empresa” no ecrã de entrada.</td></tr>';
+  $('count').textContent=r.length+' de '+C.length+' empresas';
+  const paga=C.reduce((s,c)=>s+(c.pagamentos||[]).reduce((t,p)=>t+p.valor,0),0);
+  $('cards').innerHTML=[[C.length,'Empresas cadastradas'],[C.filter(c=>estado(c)==='Ativa').length,'Garantia ativa'],[C.filter(c=>estado(c)==='A expirar').length,'A expirar (7 dias)'],[C.filter(c=>estado(c)==='Expirada').length,'Expiradas'],[R.filter(r=>r.estado==='Aguarda confirmação').length,'Pagamentos por confirmar'],[kz(paga),'Total recebido']].map(([a,b])=>`<div class="card"><b>${a}</b><span>${b}</span></div>`).join('');
+}
+
+const get=id=>C.find(c=>c.id===id);
+function acao(id){
+  const c=get(id);
+  modal(`<h2>${esc(c.nome)}</h2><p class="hint">NIF ${esc(c.nif)} · ${PLANOS[c.plano]?PLANOS[c.plano].n:''} · ${estado(c)}</p>
+  <button class="btn li" onclick="detalhe(${id})">Ver detalhe</button>
+  <button class="btn li" onclick="garantia(${id})">Renovar / alterar garantia</button>
+  <div class="acts"><button class="btn" onclick="closeM()">Fechar</button></div>`);
+}
+const volta=id=>`<div class="acts"><button class="btn" onclick="acao(${id})">Voltar</button></div>`;
+function detalhe(id){
+  const c=get(id),a=admin(c);
+  const rows=[['NIF',c.nif],['Nacionalidade',c.nacionalidade],['Contacto 1',c.tel1],['Contacto 2',c.tel2],['E-mail',c.email],['Província',c.provincia],['Endereço',c.endereco],['Cadastrada em',fmtDT(c.criadoEm)],
+    ['Administrador',a.nome],['Contacto do administrador',a.tel],['E-mail do administrador',a.email],['Conta do administrador',a.existe?(a.ativo?'Ativa':'Inativa'):'Removida da base de dados'],
+    ['Garantia',(PLANOS[c.plano]?PLANOS[c.plano].n:c.plano)+' · '+(c.valor?kz(c.valor):'Grátis')],['Válida de',fmtD(c.inicio)+' até '+fmtD(c.fim)],['Estado',estado(c)]];
+  const pags=(c.pagamentos||[]).slice().reverse().map(p=>`<div class="hl"><b>${PLANOS[p.plano]?PLANOS[p.plano].n:p.plano}</b> · ${kz(p.valor)} <span class="hint">· ${fmtDT(p.data)}</span></div>`).join('')||'<p class="hint">Ainda sem pagamentos.</p>';
+  modal(`<h2>${logo(c,'big')} ${esc(c.nome)}</h2>${rows.map(([k,v])=>`<div class="hl"><span class="hint">${k}:</span> ${esc(v)||'—'}</div>`).join('')}<h3 style="margin:14px 0 4px;font-size:14px">Pagamentos da garantia</h3>${pags}${volta(id)}`);
+}
+function garantia(id){
+  const c=get(id);
+  const opts=Object.entries(PLANOS).filter(([k])=>k!=='gratis').map(([k,p])=>`<option value="${k}">${p.n} — ${kz(p.v)}</option>`).join('');
+  modal(`<h2>Garantia — ${esc(c.nome)}</h2>
+  <p class="hint">Atual: ${PLANOS[c.plano]?PLANOS[c.plano].n:''} · expira em ${fmtD(c.fim)} (${estado(c)})</p>
+  <label>Novo plano pago</label><select id="gp" onchange="prevG(${id})">${opts}</select>
+  <div class="note" id="gn"></div>
+  <div class="acts"><button class="btn" onclick="acao(${id})">Voltar</button><button class="btn p" onclick="payG(${id})">Registar pagamento</button></div>`);
+  prevG(id);
+}
+/* Se a garantia ainda estiver válida, o novo período soma-se ao tempo que falta */
+const baseG=c=>new Date(Math.max(Date.now(),new Date(c.fim).getTime()));
+function prevG(id){const c=get(id),k=$('gp').value;$('gn').innerHTML=`Valor a pagar: <b>${kz(PLANOS[k].v)}</b><br>Nova data de expiração: <b>${fmtD(addPlano(baseG(c),k))}</b>`}
+function payG(id){
+  load();const c=get(id),k=$('gp').value,p=PLANOS[k],agora=new Date();
+  const fim=addPlano(baseG(c),k);
+  c.pagamentos=[...(c.pagamentos||[]),{data:agora.toISOString(),plano:k,valor:p.v}];
+  Object.assign(c,{plano:k,valor:p.v,inicio:agora.toISOString(),fim:fim.toISOString()});
+  save();render();closeM();toast('Garantia atualizada até '+fmtD(fim)+'.');
+}
+
+/* ---------- Pagamentos recebidos (Multicaixa Express / PayPay) ---------- */
+const savePay=()=>{try{localStorage.setItem(PAY,JSON.stringify(R))}catch(e){toast('Erro ao gravar (espaço cheio?).')}};
+const fmtRef=r=>String(r).replace(/(\d{3})(?=\d)/g,'$1 ');
+const estReq=r=>r.estado==='Pendente'&&Date.now()>new Date(r.expiraEm)?'Expirado':r.estado;
+function listPay(){
+  load();
+  const l=R.slice().sort((a,b)=>b.id-a.id);
+  const rows=l.map(r=>{const c=get(r.companyId),e=estReq(r),pend=r.estado==='Aguarda confirmação'||r.estado==='Pendente';return`<tr>
+    <td>${fmtDT(r.criadoEm)}</td><td><b>${esc(c?c.nome:'—')}</b></td><td>${PLANOS[r.plano]?PLANOS[r.plano].n:esc(r.plano)}</td><td>${kz(r.valor)}</td><td>${METODOS[r.metodo]||''}</td>
+    <td class="mono">${esc(r.entidade)} · ${fmtRef(r.ref)}</td><td>${esc(r.operacao)||'—'}${r.comprovativo?` <a href="#" onclick="verComp(${r.id});return false">comprovativo</a>`:''}</td>
+    <td><span class="tg ${e==='Confirmado'?'':(e==='Rejeitado'||e==='Expirado'||e==='Cancelado')?'r':'o'}">${e}</span></td>
+    <td style="white-space:nowrap">${pend&&e!=='Expirado'?`<button class="btn s p" onclick="confP(${r.id})">Confirmar</button> <button class="btn s d" onclick="rejP(${r.id})">Rejeitar</button>`:''}</td></tr>`}).join('')||'<tr><td colspan="9" style="text-align:center;padding:22px;color:var(--mu)">Ainda não há pagamentos.</td></tr>';
+  modal(`<h2>Pagamentos recebidos</h2><div class="tw" style="max-height:60vh;overflow:auto"><table style="min-width:900px"><thead><tr><th>Data</th><th>Empresa</th><th>Plano</th><th>Valor</th><th>Método</th><th>Entidade · Referência</th><th>Nº operação</th><th>Estado</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+  <p class="hint">Confirme só depois de verificar o recebimento na sua conta. Ao confirmar, a garantia da empresa é prolongada.</p><div class="acts"><button class="btn" onclick="closeM()">Fechar</button></div>`);
+  document.querySelector('#mb').style.maxWidth='1000px';
+}
+function verComp(id){const r=R.find(x=>x.id===id);modal(`<h2>Comprovativo</h2><img src="${esc(r.comprovativo)}" alt="" style="max-width:100%;border-radius:8px"><div class="acts"><button class="btn" onclick="listPay()">Voltar</button></div>`)}
+function confP(id){
+  load();const r=R.find(x=>x.id===id),c=r&&get(r.companyId);if(!r||!c)return;
+  const agora=new Date(),base=new Date(Math.max(Date.now(),new Date(c.fim).getTime())),fim=addPlano(base,r.plano);
+  c.pagamentos=[...(c.pagamentos||[]),{data:agora.toISOString(),plano:r.plano,valor:r.valor,metodo:r.metodo,ref:r.ref}];
+  Object.assign(c,{plano:r.plano,valor:r.valor,inicio:agora.toISOString(),fim:fim.toISOString()});
+  Object.assign(r,{estado:'Confirmado',confirmadoEm:agora.toISOString()});
+  save();savePay();render();listPay();toast('Pagamento confirmado. Garantia até '+fmtD(fim)+'.');
+}
+function rejP(id){
+  modal(`<h2>Rejeitar pagamento</h2><label>Motivo *</label><input id="rm" placeholder="Ex.: pagamento não encontrado"><div class="acts"><button class="btn" onclick="listPay()">Voltar</button><button class="btn d" onclick="cfRej(${id})">Rejeitar</button></div>`);
+}
+function cfRej(id){
+  const m=$('rm').value.trim();if(!m)return toast('Indique o motivo.');
+  load();const r=R.find(x=>x.id===id);if(!r)return;
+  Object.assign(r,{estado:'Rejeitado',motivo:m});savePay();render();listPay();
+}
+function cfgPay(){
+  load();
+  modal(`<h2>Definições de pagamento</h2><p class="hint">Dados que os administradores veem ao pagar por Multicaixa Express ou PayPay.</p>
+  <label>Entidade *</label><input id="cE" value="${esc(CF.entidade||'')}" placeholder="Ex.: 12345">
+  <label>Titular da conta</label><input id="cT" value="${esc(CF.titular||'')}" placeholder="Ex.: Kalepa Bumba-Comércio e Serviço, Lda">
+  <label>Instruções adicionais</label><input id="cI" value="${esc(CF.instrucoes||'')}" placeholder="Ex.: Envie o comprovativo para o WhatsApp +244 …">
+  <div class="acts"><button class="btn" onclick="closeM()">Cancelar</button><button class="btn p" onclick="saveCfg()">Guardar</button></div>`);
+}
+function saveCfg(){
+  const e=$('cE').value.trim();if(!e)return toast('Indique a entidade.');
+  try{localStorage.setItem(CFG,JSON.stringify({entidade:e,titular:$('cT').value.trim(),instrucoes:$('cI').value.trim()}))}catch(x){return toast('Erro ao gravar.')}
+  load();closeM();toast('Definições guardadas.');
+}
+
+function dl(n,t,ty){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:ty}));a.download=n;a.click()}
+function exportCSV(){
+  load();
+  const h=['ID','Empresa','NIF','Contacto 1','Contacto 2','E-mail','Nacionalidade','Província','Endereço','Administrador','Contacto admin','E-mail admin','Cadastro','Garantia','Valor','Início','Expira em','Estado'];
+  const rows=C.map(c=>{const a=admin(c);return[c.id,c.nome,c.nif,c.tel1,c.tel2,c.email,c.nacionalidade,c.provincia,c.endereco,a.nome,a.tel,a.email,fmtD(c.criadoEm),PLANOS[c.plano]?PLANOS[c.plano].n:c.plano,c.valor,fmtD(c.inicio),fmtD(c.fim),estado(c)]});
+  dl('empresas.csv','\ufeff'+[h,...rows].map(l=>l.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\n'),'text/csv');
+}
+function tema(){const d=document.documentElement,t=d.dataset.t==='dark'?'light':'dark';d.dataset.t=t;localStorage.setItem('tema',t)}
+document.documentElement.dataset.t=localStorage.getItem('tema')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeM()});
+document.querySelectorAll('.ov').forEach(o=>o.addEventListener('mousedown',e=>{if(e.target===o)closeM()}));
+window.addEventListener('storage',e=>{if([KC,KU,PAY,CFG].includes(e.key))render()});
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="pt-AO">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gerentodo — Base de Dados de Utilizadores</title>
+<link rel="stylesheet" href="estilo.css">
+<script src="preferencias.js"></script>
+<script src="modais.js"></script>
+<style>
+ /* Botão flutuante (canto superior direito) */
+ #bNew{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:14px;z-index:50;box-shadow:0 6px 18px rgba(0,0,0,.28);border-radius:999px;padding:11px 18px}
+ header{padding-right:170px}
+ @media(max-width:600px){header{padding-right:0;padding-top:48px}}
+ .tw{overflow-x:auto}
+</style>
+</head>
+<body class="pg-bd">
+<button id="bNew" class="pri">+ Novo registo</button>
+<div class="wrap">
+<header>
+ <div>
+  <h1>Base de Dados — Gerentodo</h1>
+  <div class="sub">Gestão centralizada de registos e utilizadores</div>
+ </div>
+</header>
+
+<div class="stats">
+ <div class="card"><b id="sT">0</b><span>Total de registos</span></div>
+ <div class="card"><b id="sA">0</b><span>Ativos</span></div>
+ <div class="card"><b id="sAd">0</b><span>Administradores</span></div>
+</div>
+
+<div class="card">
+ <div class="tools">
+  <input id="q" placeholder="Pesquisar por nome, e-mail, telefone ou empresa…">
+  <select id="fC"><option value="">Todas as empresas</option></select>
+  <select id="fR"><option value="">Todas as funções</option><option>Administrador</option><option>Editor</option><option>Utilizador</option><option>Funcionário</option></select>
+  <select id="fS"><option value="">Todos os estados</option><option>Ativo</option><option>Inativo</option></select>
+ </div>
+ <div class="tw">
+  <table>
+   <thead>
+    <tr><th>ID</th><th>Utilizador</th><th>Empresa</th><th>Telefone</th><th>Hash (PBKDF2)</th><th>Função</th><th>Data e hora do último acesso</th><th>Estado</th><th style="text-align:right">Ações</th></tr>
+   </thead>
+   <tbody id="tb"></tbody>
+  </table>
+ </div>
+</div>
+
+</div>
+
+<!-- Modal: Criar / Editar registo -->
+<div class="ov" id="mUser">
+ <form class="card md" id="fUser" autocomplete="off">
+  <h2 id="uTitle">Novo registo</h2>
+  <div class="sub" id="uSub"></div>
+  <label for="uName">Nome completo</label><input id="uName" required>
+  <label for="uCo">Empresa</label><input id="uCo" list="coList" placeholder="Ex.: Kalepa Bumba-Comércio e Serviço, Lda" required>
+  <datalist id="coList"></datalist>
+  <div class="g2">
+   <div><label for="uMail">E-mail</label><input id="uMail" type="email" required></div>
+   <div><label for="uTel">Telefone</label><input id="uTel" placeholder="+244 9xx xxx xxx" required></div>
+  </div>
+  <div class="g2">
+   <div><label for="uRole">Função</label><select id="uRole"><option>Utilizador</option><option>Funcionário</option><option>Editor</option><option>Administrador</option></select></div>
+   <div><label for="uSt">Estado</label><select id="uSt"><option>Ativo</option><option>Inativo</option></select></div>
+  </div>
+  <label for="uPw" id="uPwL">Senha</label><input id="uPw" type="password">
+  <div class="bar"><i></i><i></i><i></i><i></i></div>
+  <div class="sub" id="uStr">Mín. 10 caracteres, com maiúscula, minúscula, número e símbolo.</div>
+  <div class="alert" id="uErr"></div>
+  <div class="acts"><button type="button" data-close>Cancelar</button><button class="pri" id="uOk">Guardar</button></div>
+ </form>
+</div>
+
+<!-- Modal: Histórico de login -->
+<div class="ov" id="mHist">
+ <div class="card md" style="max-width:620px;width:100%">
+  <h2>Histórico de Login</h2>
+  <div class="sub" id="hSub"></div>
+  <div class="tw" style="max-height:340px;overflow:auto;margin-top:10px">
+   <table>
+    <thead><tr><th>Início da sessão</th><th>Fim da sessão</th><th>Duração</th></tr></thead>
+    <tbody id="hTb"></tbody>
+   </table>
+  </div>
+  <div class="acts"><button data-close>Fechar</button></div>
+ </div>
+</div>
+
+<!-- Modal: Confirmar eliminação -->
+<div class="ov" id="mDel">
+ <div class="card md">
+  <h2>Eliminar registo</h2>
+  <p id="dTx"></p>
+  <div class="acts"><button data-close>Cancelar</button><button class="pri" style="background:var(--er)" id="dOk">Eliminar</button></div>
+ </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const K='authvault.users.v3',H='authvault.hist.v3';
+const EMP='Kalepa Bumba-Comércio e Serviço, Lda';
+document.documentElement.dataset.t=localStorage.getItem('tema')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let users=[],hist=[],editId=null,delId=null,tt;
+const hex=a=>Array.from(new Uint8Array(a),b=>b.toString(16).padStart(2,'0')).join('');
+const salt=()=>hex(crypto.getRandomValues(new Uint8Array(16)));
+async function hash(p,s){if(!crypto?.subtle)throw new Error('O navegador não suporta Web Crypto (use HTTPS ou localhost).');const e=new TextEncoder(),k=await crypto.subtle.importKey('raw',e.encode(p),'PBKDF2',false,['deriveBits']);
+ return hex(await crypto.subtle.deriveBits({name:'PBKDF2',salt:e.encode(s),iterations:210000,hash:'SHA-256'},k,256))}
+async function rec(p){const s=salt();return{salt:s,hash:await hash(p,s)}}
+const strong=p=>p.length>=10&&/[a-z]/.test(p)&&/[A-Z]/.test(p)&&/\d/.test(p)&&/[^A-Za-z0-9]/.test(p);
+const norm=t=>String(t).replace(/\s+/g,'').toLowerCase();
+const fmt=iso=>iso?new Date(iso).toLocaleString('pt-PT',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}):'';
+const dur=(a,b)=>{const m=Math.round((new Date(b)-new Date(a))/60000);return m<60?m+' min':Math.floor(m/60)+' h '+String(m%60).padStart(2,'0')+' min'};
+
+function save(){try{localStorage.setItem(K,JSON.stringify(users));localStorage.setItem(H,JSON.stringify(hist))}catch(e){toast('Erro ao gravar dados.')}}
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(tt);tt=setTimeout(()=>t.style.display='none',4000)}
+function openM(id){$(id).classList.add('open')}function closeM(id){$(id).classList.remove('open')}
+function err(id,m){const e=$(id);e.textContent=m;e.style.display=m?'block':'none'}
+
+// Função para gerar o ID personalizado: Data + Tempo + Iniciais do nome + 4 dígitos aleatórios
+function gerarIdPersonalizado(nome) {
+ const agora = new Date();
+ const ano = agora.getFullYear();
+ const mes = String(agora.getMonth() + 1).padStart(2, '0');
+ const dia = String(agora.getDate()).padStart(2, '0');
+ const hora = String(agora.getHours()).padStart(2, '0');
+ const min = String(agora.getMinutes()).padStart(2, '0');
+ const seg = String(agora.getSeconds()).padStart(2, '0');
+ 
+ const dataTempo = `${ano}${mes}${dia}${hora}${min}${seg}`;
+ 
+ const partesNome = nome.trim().split(/\s+/);
+ let iniciais = '';
+ if (partesNome.length > 0) {
+  iniciais += partesNome[0].charAt(0).toUpperCase();
+  if (partesNome.length > 1) {
+   iniciais += partesNome[partesNome.length - 1].charAt(0).toUpperCase();
+  } else {
+   iniciais += (partesNome[0].charAt(1) || 'X').toUpperCase();
+  }
+ } else {
+  iniciais = 'XX';
+ }
+ 
+ const rand = Math.floor(1000 + Math.random() * 9000);
+ return `${dataTempo}${iniciais}${rand}`;
+}
+
+function seedHist(){hist=[];const now=Date.now();
+ users.forEach(u=>{for(let i=1;i<=4;i++){const t=now-i*86400000*1.3-(typeof u.id==='number'?u.id:1)*3600000,d=(20+((i*11)%70))*60000;
+  hist.push({uid:u.id,in:new Date(t).toISOString(),out:new Date(t+d).toISOString()})}})}
+
+async function seed(){
+ const mk=async(name,email,phone,role,pw,company)=>{
+  const id=gerarIdPersonalizado(name);
+  return{id,name,email,phone,company,role,status:'Ativo',isDefault:id.includes('FB'),...await rec(pw)};
+ };
+ users=[await mk('Fernando Bumba','fernando.bumba@admin.com','+244 923 000 000','Administrador','Bumb@1234',EMP),
+  await mk('Ana Silva','ana@exemplo.com','+244 924 111 111','Editor','Editor@12345',EMP),
+  await mk('João Pedro','joao@exemplo.com','+244 925 222 222','Utilizador','User@123456','Nova Era Tecnologias, Lda')];
+ seedHist();save();
+}
+
+async function init(){
+ let hRaw=null;
+ try{users=JSON.parse(localStorage.getItem(K)||'[]');hRaw=localStorage.getItem(H);hist=JSON.parse(hRaw||'[]')}catch(e){users=[];hist=[]}
+ if(!Array.isArray(users)||!users.length){await seed()}
+ else{
+  let ch=false;
+  users.forEach(u=>{if(!u.company){u.company=EMP;ch=true}});
+  users.forEach(u=>{if(u.role==='Administrador'&&u.status!=='Ativo'){u.status='Ativo';ch=true}});
+  if(!Array.isArray(hist))hist=[];
+  if(hRaw===null){seedHist();ch=true}
+  if(ch)save();
+ }
+ render()}
+
+function fillCo(){
+ const cos=[...new Set(users.map(u=>u.company))].sort((a,b)=>a.localeCompare(b,'pt'));
+ const cur=$('fC').value;
+ $('fC').innerHTML='<option value="">Todas as empresas</option>'+cos.map(c=>`<option>${esc(c)}</option>`).join('');
+ $('fC').value=cos.includes(cur)?cur:'';
+ $('coList').innerHTML=cos.map(c=>`<option value="${esc(c)}">`).join('')}
+
+function render(){
+ fillCo();
+ const q=$('q').value.trim().toLowerCase(),fr=$('fR').value,fs=$('fS').value,fc=$('fC').value;
+ const list=users.filter(u=>(!q||[u.name,u.email,u.phone,u.company].some(x=>String(x).toLowerCase().includes(q)))&&(!fr||u.role===fr)&&(!fs||u.status===fs)&&(!fc||u.company===fc));
+ 
+ $('tb').innerHTML=list.length?list.map(u=>{
+  // Encontrar o último acesso do utilizador no histórico
+  const userHist = hist.filter(h=>h.uid===u.id).sort((a,b)=>new Date(b.in)-new Date(a.in));
+  const ultimoAcesso = userHist.length ? fmt(userHist[0].in) : 'Nunca';
+
+  return`<tr>
+   <td class="mono">${esc(u.id)}</td>
+   <td><b>${esc(u.name)}</b><div class="sub">${esc(u.email)}</div></td>
+   <td>${esc(u.company)}</td>
+   <td>${esc(u.phone)}</td>
+   <td class="mono">${esc(u.hash.slice(0,16))}…</td>
+   <td><span class="bd">${esc(u.role)}${u.principal?' · principal':''}</span></td>
+   <td>${esc(ultimoAcesso)}</td>
+   <td><span class="bd ${u.status==='Ativo'?'ok':'off'}">${esc(u.status)}</span></td>
+   <td style="text-align:right;white-space:nowrap">
+    <button class="sm" data-a="hist" data-id="${u.id}">Ver Histórico de Login</button>
+    <button class="sm" data-a="edit" data-id="${u.id}">Editar</button>
+    <button class="sm" data-a="tog" data-id="${u.id}" ${u.role==='Administrador'?'disabled title="A conta de administrador não pode ser desativada."':''}>${u.status==='Ativo'?'Desativar':'Ativar'}</button>
+    <button class="sm dan" data-a="del" data-id="${u.id}" ${u.isDefault||u.principal?'disabled title="O utilizador principal não pode ser eliminado"':''}>Eliminar</button>
+   </td>
+  </tr>`}).join(''):'<tr><td colspan="9" class="sub" style="text-align:center;padding:24px">Nenhum registo encontrado.</td></tr>';
+ 
+ $('sT').textContent=users.length;
+ $('sA').textContent=users.filter(u=>u.status==='Ativo').length;
+ $('sAd').textContent=users.filter(u=>u.role==='Administrador').length;
+}
+
+function showHist(u){
+ const h=hist.filter(x=>x.uid===u.id).sort((a,b)=>new Date(b.in)-new Date(a.in));
+ $('hSub').textContent=`${u.name} — ${u.company}`;
+ $('hTb').innerHTML=h.length?h.map(x=>`<tr>
+  <td>${esc(fmt(x.in))}</td>
+  <td>${x.out?esc(fmt(x.out)):'<span class="bd ok">Sessão ativa</span>'}</td>
+  <td>${x.out?esc(dur(x.in,x.out)):'—'}</td></tr>`).join(''):'<tr><td colspan="3" class="sub" style="text-align:center;padding:20px">Sem registos de login.</td></tr>';
+ openM('mHist')}
+
+function strBar(p){const n=[p.length>=10,/[A-Z]/.test(p),/[a-z]/.test(p),/\d/.test(p),/[^A-Za-z0-9]/.test(p)].filter(Boolean).length;
+ const c=['#e11d48','#e11d48','#d97706','#d97706','#2563eb','#059669'][n];
+ document.querySelectorAll('#mUser .bar i').forEach((b,i)=>b.style.background=i<Math.ceil(n*4/5)&&p?c:'var(--bd)');
+ $('uStr').textContent=p?['Muito fraca','Muito fraca','Fraca','Razoável','Forte','Muito forte'][n]:'Mín. 10 caracteres, com maiúscula, minúscula, número e símbolo.'}
+$('uPw').oninput=e=>strBar(e.target.value);
+
+function openUser(u){editId=u?u.id:null;$('fUser').reset();err('uErr','');strBar('');
+ $('uTitle').textContent=u?'Editar registo':'Novo registo';$('uSub').textContent=u?`ID ${u.id}`:'Insira os dados do novo utilizador.';
+ $('uPwL').textContent=u?'Nova senha (deixe em branco para manter)':'Senha';$('uPw').required=!u;
+ if(u){$('uName').value=u.name;$('uCo').value=u.company;$('uMail').value=u.email;$('uTel').value=u.phone;$('uRole').value=u.role;$('uSt').value=u.status}
+ $('uRole').disabled=!!(u&&(u.isDefault||u.principal));syncSt();openM('mUser');$('uName').focus()}
+
+function syncSt(){const a=$('uRole').value==='Administrador';if(a)$('uSt').value='Ativo';$('uSt').disabled=a}
+$('uRole').addEventListener('change',syncSt);
+$('bNew').onclick=()=>openUser(null);
+
+function dup(email,tel,except){if(users.some(u=>u.id!==except&&u.email.toLowerCase()===email.toLowerCase()))return'Já existe um registo com este e-mail.';
+ if(users.some(u=>u.id!==except&&norm(u.phone)===norm(tel)))return'Já existe um registo com este telefone.';return''}
+
+$('fUser').onsubmit=async e=>{e.preventDefault();
+ const name=$('uName').value.trim(),company=$('uCo').value.trim(),email=$('uMail').value.trim(),tel=$('uTel').value.trim(),role=$('uRole').value,st=$('uRole').value==='Administrador'?'Ativo':$('uSt').value,pw=$('uPw').value;
+ if(name.length<2)return err('uErr','Introduza o nome completo.');
+ if(company.length<2)return err('uErr','Introduza o nome da empresa.');
+ const d=dup(email,tel,editId);if(d)return err('uErr',d);
+ if((!editId||pw)&&!strong(pw))return err('uErr','Senha fraca: use 10+ caracteres com maiúscula, minúscula, número e símbolo.');
+ const admins=users.filter(u=>u.role==='Administrador'&&u.status==='Ativo'&&u.id!==editId).length;
+ if(editId&&(role!=='Administrador'||st!=='Ativo')&&users.find(u=>u.id===editId).role==='Administrador'&&!admins)return err('uErr','Tem de existir pelo menos um administrador ativo.');
+ try{if(editId){const u=users.find(x=>x.id===editId);Object.assign(u,{name,company,email,phone:tel,role,status:st});if(pw)Object.assign(u,await rec(pw));
+   toast('Registo atualizado.')}
+  else{const id=gerarIdPersonalizado(name);users.push({id,name,company,email,phone:tel,role,status:st,isDefault:false,...await rec(pw)});toast('Registo criado.')}
+  save();closeM('mUser');render()}catch(x){err('uErr',x.message)}};
+
+$('tb').onclick=e=>{const b=e.target.closest('button[data-a]');if(!b)return;const u=users.find(x=>x.id===b.dataset.id);if(!u)return;
+ if(b.dataset.a==='hist')showHist(u);
+ if(b.dataset.a==='edit')openUser(u);
+ if(b.dataset.a==='tog'){if(u.role==='Administrador')return toast('A conta de administrador não pode ser desativada.');const last=u.role==='Administrador'&&u.status==='Ativo'&&users.filter(x=>x.role==='Administrador'&&x.status==='Ativo').length<2;
+  if(last)return toast('Tem de existir pelo menos um administrador ativo.');
+  u.status=u.status==='Ativo'?'Inativo':'Ativo';save();render()}
+ if(b.dataset.a==='del'){delId=u.id;$('dTx').textContent=`Tem a certeza de que pretende eliminar o registo de ${u.name}?`;openM('mDel')}};
+
+$('dOk').onclick=()=>{const u=users.find(x=>x.id===delId);if(!u||u.isDefault||u.principal)return closeM('mDel');
+ const last=u.role==='Administrador'&&users.filter(x=>x.role==='Administrador'&&x.status==='Ativo').length<2;
+ if(last){closeM('mDel');return toast('Não pode eliminar o último administrador ativo.');}
+ users=users.filter(x=>x.id!==delId);hist=hist.filter(h=>h.uid!==delId);save();closeM('mDel');toast('Registo eliminado.');render()};
+
+['q','fC','fR','fS'].forEach(i=>$(i).addEventListener('input',render));
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.ov').classList.remove('open'));
+document.querySelectorAll('.ov').forEach(o=>o.addEventListener('mousedown',e=>{if(e.target===o)o.classList.remove('open')}));
+
+init().catch(e=>toast(e.message||'Erro ao carregar base de dados.'));
+</script>
+</body>
+</html>

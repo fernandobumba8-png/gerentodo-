@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-AO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Utilizadores da empresa</title>
+<link rel="stylesheet" href="estilo.css">
+<script src="filtros.js" defer></script>
+<script src="preferencias.js"></script>
+<script src="modais.js"></script>
+<style>
+ /* Botão Menu flutuante no canto superior direito */
+ .menuw.fab{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:14px;z-index:40}
+ .fab>.btn{border-radius:999px;padding:10px 18px;box-shadow:0 6px 18px rgba(0,0,0,.28)}
+ main{padding-top:64px}
+</style>
+</head>
+<body class="pg-utilizadores">
+<div class="menuw fab">
+  <button class="btn p" onclick="toggleMenu(event)" aria-haspopup="true">☰ Menu</button>
+  <div class="menu" id="menu">
+    <button onclick="openForm()">Novo utilizador</button>
+    <hr>
+    <button onclick="tema()">Claro/Escuro</button>
+  </div>
+</div>
+
+<main id="main">
+  <div id="deny" class="card hide" style="max-width:480px;margin:40px auto;text-align:center">
+    <b>Sem permissão</b><br><span>Só os administradores da empresa podem gerir utilizadores.</span>
+  </div>
+
+  <div id="ok" class="hide">
+    <div class="filters">
+      <input id="fq" placeholder="Pesquisar nome, contacto ou e-mail" oninput="render()">
+      <select id="ft" onchange="render()"><option value="">Tipo</option><option value="p">Administrador principal</option><option value="a">Administrador secundário</option><option value="f">Funcionário</option></select>
+      <select id="fe" onchange="render()"><option value="">Estado</option><option>Ativo</option><option>Inativo</option></select>
+      <button class="btn" onclick="['fq','ft','fe'].forEach(i=>$(i).value='');render()">Limpar filtros</button>
+    </div>
+    <section class="cards" id="cards"></section>
+    <p class="hint" id="count"></p>
+    <div class="tw"><table>
+      <thead><tr><th>ID</th><th>Utilizador</th><th>Contacto</th><th>Tipo</th><th>Estado</th><th>Criado em</th><th style="text-align:right">Ações</th></tr></thead>
+      <tbody id="tb"></tbody>
+    </table></div>
+    <p class="hint">O administrador principal não pode ser eliminado. Os funcionários não veem este módulo nem os outros utilizadores.</p>
+  </div>
+</main>
+
+<!-- Novo / editar utilizador -->
+<div class="ov" id="mU">
+  <form class="card md" id="fU" autocomplete="off">
+    <h2 id="uT">Novo utilizador</h2>
+    <label for="uN">Nome completo *</label><input id="uN" required>
+    <div class="g2">
+      <div><label for="uTel">Contacto *</label><input id="uTel" type="tel" placeholder="+244 9xx xxx xxx" required></div>
+      <div><label for="uMail">E-mail</label><input id="uMail" type="email"></div>
+    </div>
+    <div class="g2">
+      <div><label for="uTp">Tipo *</label><select id="uTp"><option value="f">Funcionário</option><option value="a">Administrador secundário</option></select></div>
+      <div><label for="uSt">Estado</label><select id="uSt"><option>Ativo</option><option>Inativo</option></select></div>
+    </div>
+    <label for="uPw" id="uPwL">Senha *</label><input id="uPw" type="password">
+    <label for="uPw2">Confirmar senha</label><input id="uPw2" type="password">
+    <div class="sub" style="margin-top:4px">Mín. 10 caracteres, com maiúscula, minúscula, número e símbolo.</div>
+    <div class="alert" id="uErr"></div>
+    <div class="acts"><button type="button" onclick="closeM('mU')">Cancelar</button><button class="pri">Guardar</button></div>
+  </form>
+</div>
+
+<!-- Confirmar eliminação -->
+<div class="ov" id="mD">
+  <div class="card md">
+    <h2>Eliminar utilizador</h2>
+    <p id="dT"></p>
+    <div class="acts"><button onclick="closeM('mD')">Cancelar</button><button class="pri" style="background:var(--er)" id="dOk">Eliminar</button></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const KU='authvault.users.v3',KS='authvault.session.v3',KL='authvault.log.v3',KH='authvault.hist.v3';
+const esc=s=>(s??'').toString().replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm=s=>(s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const digits=t=>String(t).replace(/\D/g,'');
+const fmtD=iso=>iso?new Date(iso).toLocaleDateString('pt-PT'):'—';
+function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',3200)}
+const openM=id=>$(id).classList.add('on'),closeM=id=>$(id).classList.remove('on');
+const showErr=m=>{const e=$('uErr');e.textContent=m;e.style.display=m?'block':'none'};
+function toggleMenu(e){e.stopPropagation();$('menu').classList.toggle('on')}
+document.addEventListener('click',()=>$('menu').classList.remove('on'));
+
+/* ---------- criptografia (igual à do sistema de acesso) ---------- */
+const hex=a=>Array.from(new Uint8Array(a),b=>b.toString(16).padStart(2,'0')).join('');
+async function cred(p){
+  if(!crypto?.subtle)throw new Error('O navegador não suporta Web Crypto (use HTTPS ou localhost).');
+  const s=hex(crypto.getRandomValues(new Uint8Array(16))),e=new TextEncoder();
+  const k=await crypto.subtle.importKey('raw',e.encode(p),'PBKDF2',false,['deriveBits']);
+  return{salt:s,hash:hex(await crypto.subtle.deriveBits({name:'PBKDF2',salt:e.encode(s),iterations:210000,hash:'SHA-256'},k,256))};
+}
+const strong=p=>p.length>=10&&/[a-z]/.test(p)&&/[A-Z]/.test(p)&&/\d/.test(p)&&/[^A-Za-z0-9]/.test(p);
+
+/* ---------- dados e permissões ---------- */
+let U=[],me=null,editId=null,delId=null;
+function load(){
+  try{U=JSON.parse(localStorage.getItem(KU)||'[]')}catch(e){U=[]}
+  if(!Array.isArray(U))U=[];
+  const id=Number(sessionStorage.getItem(KS));
+  me=U.find(u=>u.id===id&&u.status==='Ativo')||null;
+}
+const save=()=>localStorage.setItem(KU,JSON.stringify(U));
+function log(t){try{const l=JSON.parse(localStorage.getItem(KL)||'[]');l.unshift(new Date().toLocaleTimeString('pt-PT')+' — '+t);localStorage.setItem(KL,JSON.stringify(l.slice(0,8)))}catch(e){}}
+const allowed=()=>!!me&&me.role==='Administrador'&&!!me.companyId;
+const team=()=>U.filter(u=>u.companyId===me.companyId);
+const isPrin=u=>!!u.principal;
+const tipo=u=>isPrin(u)?'Administrador principal':u.role==='Administrador'?'Administrador secundário':'Funcionário';
+/* Ninguém elimina o principal. O principal gere todos; o secundário gere só funcionários. */
+const canManage=t=>!!me&&t.id!==me.id&&!isPrin(t)&&t.companyId===me.companyId&&(isPrin(me)||t.role!=='Administrador');
+
+function render(){
+  load();
+  const ok=allowed();
+  $('deny').classList.toggle('hide',ok);$('ok').classList.toggle('hide',!ok);
+  if(!ok)return;
+  const q=norm($('fq').value),ft=$('ft').value,fe=$('fe').value;
+  const all=team();
+  const r=all.filter(u=>(!q||norm([u.name,u.phone,u.email].join(' ')).includes(q))&&(!ft||(ft==='p'?isPrin(u):ft==='a'?(u.role==='Administrador'&&!isPrin(u)):u.role!=='Administrador'))&&(!fe||u.status===fe))
+    .sort((a,b)=>(isPrin(b)-isPrin(a))||a.id-b.id);
+  $('tb').innerHTML=r.map(u=>{
+    const m=canManage(u);
+    return`<tr>
+     <td class="mono">${u.id}</td>
+     <td><b>${esc(u.name)}</b>${u.id===me.id?' <span class="tg">Você</span>':''}<div class="sub">${esc(u.email)||'—'}</div></td>
+     <td>${esc(u.phone)}</td>
+     <td><span class="bd">${tipo(u)}</span></td>
+     <td><span class="bd ${u.status==='Ativo'?'ok':'off'}">${esc(u.status)}</span></td>
+     <td>${fmtD(u.criadoEm)}</td>
+     <td style="text-align:right;white-space:nowrap">${m?`
+       <button class="sm" onclick="openForm(${u.id})">Editar</button>
+       ${u.role==='Administrador'?'':`<button class="sm" onclick="tog(${u.id})">${u.status==='Ativo'?'Desativar':'Ativar'}</button>`}
+       <button class="sm dan" onclick="askDel(${u.id})">Eliminar</button>`:'<span class="sub">'+(isPrin(u)?'Protegido':'—')+'</span>'}</td>
+    </tr>`}).join('')||'<tr><td colspan="7" class="sub" style="text-align:center;padding:24px">Nenhum utilizador encontrado.</td></tr>';
+  $('count').textContent=r.length+' de '+all.length+' utilizadores';
+  $('cards').innerHTML=[[all.length,'Utilizadores'],[all.filter(u=>u.role==='Administrador').length,'Administradores'],[all.filter(u=>u.role!=='Administrador').length,'Funcionários'],[all.filter(u=>u.status==='Ativo').length,'Ativos']].map(([a,b])=>`<div class="card"><b>${a}</b><span>${b}</span></div>`).join('');
+}
+
+/* ---------- criar / editar ---------- */
+function openForm(id){
+  return toast('A gestão de utilizadores está a ser ligada ao servidor. Disponível em breve.');
+  load();if(!allowed())return;
+  editId=id||null;
+  const t=editId?U.find(u=>u.id===editId):null;
+  if(editId&&(!t||!canManage(t)))return toast('Sem permissão para editar este utilizador.');
+  $('fU').reset();showErr('');
+  $('uT').textContent=t?'Editar utilizador':'Novo utilizador';
+  $('uPwL').textContent=t?'Nova senha (deixe em branco para manter)':'Senha *';
+  if(t){$('uN').value=t.name;$('uTel').value=t.phone;$('uMail').value=t.email||'';$('uTp').value=t.role==='Administrador'?'a':'f';$('uSt').value=t.status}
+  syncSt();openM('mU');$('uN').focus();
+}
+/* Administrador: estado sempre Ativo */
+function syncSt(){const a=$('uTp').value==='a';if(a)$('uSt').value='Ativo';$('uSt').disabled=a}
+$('uTp').addEventListener('change',syncSt);
+$('fU').onsubmit=async e=>{
+  e.preventDefault();load();if(!allowed())return;
+  const name=$('uN').value.trim(),tel=$('uTel').value.trim(),mail=$('uMail').value.trim(),tp=$('uTp').value,st=$('uTp').value==='a'?'Ativo':$('uSt').value,pw=$('uPw').value,pw2=$('uPw2').value;
+  const t=editId?U.find(u=>u.id===editId):null;
+  if(editId&&(!t||!canManage(t)))return showErr('Sem permissão para editar este utilizador.');
+  if(name.length<2)return showErr('Introduza o nome completo.');
+  if(digits(tel).length<9)return showErr('Introduza o contacto (mínimo 9 dígitos).');
+  if(mail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail))return showErr('O e-mail é inválido.');
+  if(mail&&U.some(u=>u.id!==editId&&String(u.email).toLowerCase()===mail.toLowerCase()))return showErr('Já existe uma conta com este e-mail.');
+  if(U.some(u=>u.id!==editId&&digits(u.phone).slice(-9)===digits(tel).slice(-9)))return showErr('Já existe uma conta com este contacto.');
+  if(!editId||pw){
+    if(!strong(pw))return showErr('Senha fraca: use 10+ caracteres com maiúscula, minúscula, número e símbolo.');
+    if(pw!==pw2)return showErr('A confirmação não coincide com a senha.');
+  }
+  try{
+    const role=tp==='a'?'Administrador':'Funcionário';
+    if(t){
+      Object.assign(t,{name,phone:tel,email:mail,role,status:st});
+      if(pw)Object.assign(t,await cred(pw));
+      log(`${me.name} atualizou o utilizador ${t.name}.`);toast('Utilizador atualizado.');
+    }else{
+      const id=Math.max(0,...U.map(u=>u.id))+1;
+      U.push({id,name,email:mail,phone:tel,company:me.company,companyId:me.companyId,role,principal:false,status:'Ativo',isDefault:false,avatar:'',criadoEm:new Date().toISOString(),...await cred(pw)});
+      log(`${me.name} cadastrou ${name} (${role==='Administrador'?'administrador secundário':'funcionário'}).`);toast('Utilizador cadastrado.');
+    }
+    save();closeM('mU');render();
+  }catch(x){showErr(x.message||'Erro ao guardar.')}
+};
+
+/* ---------- ativar/desativar e eliminar ---------- */
+function tog(id){
+  return toast('A gestão de utilizadores está a ser ligada ao servidor. Disponível em breve.');
+  load();const t=U.find(u=>u.id===id);
+  if(!t||!canManage(t))return toast('Sem permissão.');
+  if(t.role==='Administrador')return toast('A conta de administrador não pode ser desativada.');
+  t.status=t.status==='Ativo'?'Inativo':'Ativo';save();
+  log(`${me.name} alterou o estado de ${t.name} para ${t.status}.`);render();
+}
+function askDel(id){
+  return toast('A gestão de utilizadores está a ser ligada ao servidor. Disponível em breve.');
+  load();const t=U.find(u=>u.id===id);
+  if(!t||!canManage(t))return toast('Sem permissão para eliminar este utilizador.');
+  delId=id;$('dT').textContent=`Tem a certeza de que pretende eliminar ${t.name}? Esta ação não pode ser desfeita.`;openM('mD');
+}
+$('dOk').onclick=()=>{
+  load();const t=U.find(u=>u.id===delId);
+  closeM('mD');
+  if(!t||!canManage(t))return toast('Sem permissão para eliminar este utilizador.');
+  U=U.filter(u=>u.id!==delId);save();
+  try{const h=JSON.parse(localStorage.getItem(KH)||'[]');localStorage.setItem(KH,JSON.stringify(h.filter(x=>x.uid!==delId)))}catch(e){}
+  log(`${me.name} eliminou o utilizador ${t.name}.`);toast('Utilizador eliminado.');render();
+};
+
+function tema(){const d=document.documentElement,t=d.dataset.t==='dark'?'light':'dark';d.dataset.t=t;localStorage.setItem('tema',t)}
+document.documentElement.dataset.t=localStorage.getItem('tema')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeM('mU');closeM('mD')}});
+document.querySelectorAll('.ov').forEach(o=>o.addEventListener('mousedown',e=>{if(e.target===o)o.classList.remove('on')}));
+window.addEventListener('storage',e=>{if(e.key===KU)render()});
+render();
+</script>
+</body>
+</html>

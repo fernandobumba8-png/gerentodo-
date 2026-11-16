@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt-AO">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gerentodo — faturação e gestão para negócios em Angola</title>
+<meta name="description" content="Sistema de faturação e gestão para negócios em Angola: faturas, stock, clientes, fornecedores, vitrine online, equipa e mensagens.">
+<meta name="theme-color" content="#7c3aed">
+<link rel="icon" type="image/png" href="lodo_gerentodo.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237c3aed'/%3E%3Ctext x='32' y='45' font-size='38' font-family='Arial' font-weight='700' text-anchor='middle' fill='white'%3EG%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="estilo.css">
+<style>
+#site{--bg:#f6f7f3;--surface:#fff;--ink:#14221c;--muted:#56645c;--line:#dfe4dc;--green:#0b6b4f;--green-ink:#fff;--sun:#f2b705;--sun-ink:#2a2000;
+color-scheme:light}
+[data-t="dark"] #site{--bg:#0f1713;--surface:#17221c;--ink:#eef2ec;--muted:#a3b0a7;--line:#27352d;--green:#3cc796;--green-ink:#06261b;color-scheme:dark}
+#site *,#site *::before,#site *::after{box-sizing:border-box}
+#site{margin:0;background:var(--bg);color:var(--ink);font:400 17px/1.6 "Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",sans-serif}
+#site h1,#site h2,#site h3{line-height:1.08;margin:0;letter-spacing:-.02em}
+#site a{color:inherit}
+#site .g-wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+#site :focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+#site .g-btn{display:inline-block;padding:13px 22px;border-radius:10px;background:var(--green);color:var(--green-ink);font-weight:600;text-decoration:none;border:0;cursor:pointer;font:inherit;font-weight:600}
+#site .g-btn.g-sun{background:var(--sun);color:var(--sun-ink)}
+#site .g-btn.g-ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+#site .g-header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+#site .g-nav{display:flex;align-items:center;gap:24px;height:64px}
+#site .g-logo{font-weight:800;font-size:22px;text-decoration:none;letter-spacing:-.03em}
+#site .g-logo i{display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--sun);margin-right:7px}
+#site .g-nav nav{display:flex;gap:22px;margin-left:auto}
+#site .g-nav nav a{text-decoration:none;color:var(--muted);font-size:15px}
+#site .g-nav nav a:hover{color:var(--ink)}
+#site .g-hero{padding:64px 0 72px}
+#site .g-hero .g-wrap{display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:center}
+#site h1{font-size:clamp(40px,6vw,68px);font-weight:800}
+#site .g-lead{color:var(--muted);font-size:19px;max-width:30em;margin:20px 0 28px}
+#site .g-cta{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+#site .g-note{color:var(--muted);font-size:14px;margin-top:14px}
+#site .g-inv{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:0 18px 40px -22px rgba(0,0,0,.35);animation:grise .7s ease both}
+@keyframes grise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){#site .g-inv{animation:none}}
+#site .g-inv-h{display:flex;justify-content:space-between;font-weight:600;border-bottom:1px dashed var(--line);padding-bottom:12px;margin-bottom:8px}
+#site .g-inv-h span:last-child{color:var(--muted);font-weight:400}
+#site .g-row{display:flex;justify-content:space-between;padding:9px 0;font-size:15px;border-bottom:1px solid var(--line)}
+#site .g-row b{font-weight:600}
+#site .g-paid{display:inline-block;background:var(--sun);color:var(--sun-ink);font-size:13px;font-weight:600;padding:4px 10px;border-radius:99px;margin-top:12px}
+#site section{padding:72px 0}
+#site .g-alt{background:var(--surface);border-block:1px solid var(--line)}
+#site h2{font-size:clamp(30px,4vw,44px);font-weight:800;max-width:18em}
+#site .g-sub{color:var(--muted);max-width:36em;margin:14px 0 0}
+#site .g-tabs{display:flex;gap:8px;margin:32px 0 24px;flex-wrap:wrap}
+#site .g-tab{padding:10px 18px;border-radius:99px;border:1.5px solid var(--line);background:transparent;color:var(--ink);font:inherit;font-weight:600;cursor:pointer}
+#site .g-tab[aria-selected="true"]{background:var(--green);color:var(--green-ink);border-color:var(--green)}
+#site .g-panel{display:grid;grid-template-columns:1fr 1fr;gap:40px}
+#site .g-panel[hidden]{display:none}
+#site .g-panel h3{font-size:28px;font-weight:800}
+#site .g-panel ul{list-style:none;padding:0;margin:18px 0 0}
+#site .g-panel li{padding:9px 0 9px 28px;position:relative;border-bottom:1px solid var(--line)}
+#site .g-panel li::before{content:"";position:absolute;left:0;top:17px;width:12px;height:7px;border-left:2.5px solid var(--green);border-bottom:2.5px solid var(--green);transform:rotate(-45deg)}
+#site .g-for{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:24px;align-self:start}
+#site .g-for p{margin:0 0 10px;color:var(--muted)}
+#site .g-for strong{display:block;font-size:19px;padding:6px 0}
+#site .g-why{display:grid;grid-template-columns:repeat(2,1fr);gap:0;margin-top:36px;border-top:1px solid var(--line)}
+#site .g-why div{padding:26px 28px 26px 0;border-bottom:1px solid var(--line)}
+#site .g-why h3{font-size:22px;font-weight:600}
+#site .g-why p{margin:8px 0 0;color:var(--muted)}
+#site details{border-bottom:1px solid var(--line);padding:18px 0;max-width:760px}
+#site summary{cursor:pointer;font-weight:600;font-size:18px}
+#site details p{color:var(--muted);margin:10px 0 0}
+#site .g-final{background:var(--green);color:var(--green-ink);text-align:center;padding:72px 0}
+#site .g-final h2{margin:0 auto}
+#site .g-final p{opacity:.9;margin:14px auto 28px}
+#site footer{padding:44px 0 32px;color:var(--muted);font-size:15px}
+#site .g-fcols{display:grid;grid-template-columns:2fr 1fr 1fr;gap:28px}
+#site footer h4{margin:0 0 10px;color:var(--ink);font-size:15px}
+#site footer a{display:block;text-decoration:none;padding:3px 0}
+#site footer a:hover{color:var(--ink)}
+#site .g-copy{margin-top:32px;padding-top:18px;border-top:1px solid var(--line)}
+@media (max-width:860px){#site .g-hero .g-wrap,#site .g-panel,#site .g-why{grid-template-columns:1fr}
+#site .g-fcols{grid-template-columns:1fr 1fr}
+#site .g-nav nav a:not(.g-keep){display:none}
+#site section{padding:52px 0}}
+#site{min-height:100vh;overflow-x:clip}
+#site .g-tab:hover{border-color:var(--green)}
+.logo-img{height:34px;width:auto;max-width:120px;border-radius:8px;object-fit:contain;vertical-align:middle;margin-right:8px}
+#sb .logo-img{height:32px}
+</style>
+</head>
+<body class="pg-login">
+
+<div id="site">
+<div class="g-header">
+<div class="g-wrap g-nav">
+<a class="g-logo" href="#"><img class="logo-img" src="lodo_gerentodo.png" alt="" onload="this.nextElementSibling.style.display='none'" onerror="this.style.display='none'"><i></i>Gerentodo</a>
+<nav>
+	<a href="#s-funcionalidades">Funcionalidades</a>
+	<a href="#s-pacotes">Pacotes</a>
+		<a href="#s-faq">Perguntas</a>
+	<a class="g-keep" href="conta.html#entrar">Entrar</a>
+</nav>
+<a class="g-btn" href="conta.html#cadastro" style="padding:2px 10px;font-size:14px">Criar conta</a>
+</div>
+</div>
+
+<div class="g-main">
+<div class="g-hero"><div class="g-wrap">
+<div>
+<h1>Faturação e gestão para o seu negócio ou Serviço</h1>
+<p class="g-lead">Emita faturas, controle o stock, gastos e organize a sua equipa num só sistema. Funciona no computador, no tablet e no telemóvel, sem instalar nada.</p>
+<div class="g-cta"><a class="g-btn g-sun" href="conta.html#cadastro">experimente grátis</a><a class="g-btn g-ghost" href="#s-funcionalidades">Ver funcionalidades</a></div>
+<p class="g-note">Gratuito e sem compromisso.</p>
+</div>
+</div>
+</div>
+
+<section id="s-funcionalidades" class="g-alt"><div class="g-wrap">
+<h2>Tudo o que o seu negócio precisa, num só lugar</h2>
+<p class="g-sub">Veja o que o Gerentodo faz por si em cada área.</p>
+<div class="g-tabs" role="tablist">
+<button class="g-tab" role="tab" aria-selected="true" aria-controls="s-p1" id="s-t1">Faturação</button>
+<button class="g-tab" role="tab" aria-selected="false" aria-controls="s-p2" id="s-t2">Stock e vendas</button>
+<button class="g-tab" role="tab" aria-selected="false" aria-controls="s-p3" id="s-t3">Equipa</button>
+</div>
+<div class="g-panel" id="s-p1" role="tabpanel" aria-labelledby="s-t1">
+<div><h3>Faturação completa, da proforma ao recibo</h3>
+<ul><li>Faturas, faturas-recibo, proformas, guias de remessa e notas de crédito</li><li>Venda rápida com fatura-recibo emitida em segundos</li><li>Impressão e PDF dos documentos</li><li>Clientes com conta corrente, dívidas e vencimentos</li><li>Gráficos de vendas e melhores vendedores</li></ul></div>
+<div class="g-for"><p>Ideal para</p><strong>Escritórios</strong><strong>Prestadores de serviços</strong><strong>Pequenas empresas</strong></div>
+</div>
+<div class="g-panel" id="s-p2" role="tabpanel" aria-labelledby="s-t2" hidden>
+<div><h3>Stock e vendas sempre sob controlo</h3>
+<ul><li>Produtos com categorias, preços e stock mínimo</li><li>Entradas e saídas com histórico e o nome de quem as fez</li><li>Fornecedores e compras</li><li>Departamentos e relatórios de consumo</li><li>Vitrine online com pedidos dos clientes</li></ul></div>
+<div class="g-for"><p>Ideal para</p><strong>Lojas e comércio em geral</strong><strong>Armazéns</strong><strong>Negócios com venda online</strong></div>
+</div>
+<div class="g-panel" id="s-p3" role="tabpanel" aria-labelledby="s-t3" hidden>
+<div><h3>A sua equipa organizada e ligada</h3>
+<ul><li>Administrador principal, administradores secundários e funcionários</li><li>Permissões por função</li><li>Mensagens e reuniões por áudio ou vídeo, com minuta automática</li><li>Cofre de acordos com assinatura digital</li><li>Cada utilizador personaliza a sua página</li></ul></div>
+<div class="g-for"><p>Ideal para</p><strong>Equipas de trabalho</strong><strong>Empresas com vários utilizadores</strong><strong>Departamentos</strong></div>
+</div>
+</div></section>
+
+<section id="s-pacotes"><div class="g-wrap pkroot">
+<h2>Escolha o pacote para o seu negócio</h2>
+<p class="g-sub">Cada pacote começa com dias grátis. Escolha agora e crie a conta ou entre a seguir. Pode mudar de pacote quando quiser.</p>
+<div id="pkPub"></div>
+</div></section>
+<section id="s-faq" class="g-alt"><div class="g-wrap">
+<h2>Perguntas frequentes</h2>
+<div style="margin-top:28px">
+<details><summary>Preciso de instalar o Gerentodo?</summary><p>Não. Funciona no navegador, no computador, no tablet ou no telemóvel.</p></details>
+<details><summary>Quanto custa?</summary><p>A utilização é gratuita neste momento.</p></details>
+<details><summary>Como crio a conta da minha empresa?</summary><p>Clique em “Criar conta grátis”, preencha os dados da empresa e do administrador e a conta fica aberta logo a seguir.</p></details>
+<details><summary>Posso ter vários utilizadores?</summary><p>Sim. O administrador cria administradores secundários e funcionários, cada um com as permissões da sua função.</p></details>
+<details><summary>Onde ficam guardados os meus dados?</summary><p>No navegador do dispositivo que usa. Faça cópias de segurança regularmente nos módulos que as oferecem.</p></details>
+<details><summary>Esqueci o e-mail, o telefone ou a senha. O que faço?</summary><p>No ecrã de entrada, clique em “Esqueci o e-mail, o telefone ou a senha”, escolha receber um código por e-mail ou por WhatsApp e defina uma nova senha.</p></details>
+</div>
+</div></section>
+
+<div class="g-final"><div class="g-wrap">
+<h2>Comece a usar hoje</h2>
+<p>Gratuito, sem cartão e sem compromisso.</p>
+<a class="g-btn g-sun" href="conta.html#cadastro">Criar conta grátis</a>
+<p style="margin:18px 0 0"><a href="conta.html#entrar" style="color:inherit">Já tem conta? Entrar</a></p>
+</div></div>
+</div>
+
+<footer><div class="g-wrap">
+<div class="g-fcols">
+<div><a class="g-logo" href="#" style="padding:0;color:var(--ink)"><img class="logo-img" src="lodo_gerentodo.png" alt="" onload="this.nextElementSibling.style.display='none'" onerror="this.style.display='none'"><i></i>Gerentodo</a><p>Sistema de faturação e gestão para negócios em Angola.</p></div>
+<div><h4>Funcionalidades</h4><a href="#s-funcionalidades">Faturação</a><a href="#s-funcionalidades">Stock e vendas</a><a href="#s-funcionalidades">Equipa</a></div>
+<div><h4>Pacotes</h4><a href="#s-pacotes">Ver pacotes e preços</a></div>
+<div><h4>Conta</h4><a href="conta.html#entrar">Entrar</a><a href="conta.html#cadastro">Criar conta</a><a href="#s-faq">Perguntas</a></div>
+</div>
+<div class="g-copy">© 2026 Gerentodo. Todos os direitos reservados.</div>
+</div></footer>
+</div>
+
+
+<div class="ov" id="mPk"><div class="md" style="max-width:460px">
+  <h2>Pacote escolhido</h2>
+  <div id="mPkB"></div>
+  <p class="hint" style="margin:10px 0">Para ativar este pacote, crie a sua conta ou entre na conta que já tem.</p>
+  <div class="acts" style="flex-wrap:wrap">
+    <button type="button" class="btn" onclick="fecharPk()">Cancelar</button>
+    <a class="btn" href="conta.html#entrar">Já tenho conta · Entrar</a>
+    <a class="btn p" href="conta.html#cadastro">Criar conta</a>
+  </div>
+</div></div>
+<script src="pacotes.js"></script>
+<script>
+/* Escolha de pacote na página pública: guarda a escolha neste navegador e pede para criar conta ou entrar. */
+var pkFiltro = '';
+function pkRender() { PACOTES.injetarCss(); document.getElementById('pkPub').innerHTML = PACOTES.secoesHTML(pkFiltro, null, 'escolherPk', 'filtrarPk'); }
+function filtrarPk(f) { pkFiltro = f; pkRender(); }
+function escolherPk(id) {
+  var p = PACOTES.get(id); if (!p) return;
+  try { localStorage.setItem('authvault.pacote.pendente', JSON.stringify({ id: id, titulo: p.catNome + ' · ' + p.cicloNome, valor: PACOTES.kz(p.valor) + ' / ' + p.un, em: Date.now() })); } catch (e) {}
+  document.getElementById('mPkB').innerHTML = '<div style="padding:12px 14px;border:1px solid var(--bd);border-radius:12px;background:var(--in)"><b>' + PACOTES.esc(p.catNome) + ' · ' + p.cicloNome + '</b><br>' + p.nome + ' · ' + PACOTES.kz(p.valor) + ' / ' + p.un + '<br><span class="hint">Primeiros ' + p.trial + ' dias grátis</span></div>';
+  document.getElementById('mPk').classList.add('on');
+}
+function fecharPk() { document.getElementById('mPk').classList.remove('on'); }
+document.getElementById('mPk').addEventListener('mousedown', function (e) { if (e.target === this) fecharPk(); });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') fecharPk(); });
+pkRender();
+</script>
+<script>
+/* Página pública: não carrega nenhum código da conta (login, utilizadores, módulos). */
+(function () {
+  var t = null; try { t = localStorage.getItem('tema'); } catch (e) {}
+  document.documentElement.dataset.t = t || (matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light');
+  var $ = function (id) { return document.getElementById(id); };
+  document.querySelectorAll('#site .g-tab').forEach(function (tab) { tab.addEventListener('click', function () {
+    document.querySelectorAll('#site .g-tab').forEach(function (x) {
+      var on = x === tab; x.setAttribute('aria-selected', on); $(x.getAttribute('aria-controls')).hidden = !on;
+    });
+  }); });
+  document.querySelectorAll('#site a[href^="#"]').forEach(function (a) { a.addEventListener('click', function (e) {
+    e.preventDefault();
+    var id = a.getAttribute('href').slice(1), el = id && $(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+  }); });
+})();
+</script>
+</body>
+</html>

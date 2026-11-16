@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="pt-AO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NetChat Pro</title>
+<link rel="stylesheet" href="estilo.css">
+<script src="preferencias.js"></script>
+<script src="modais.js"></script>
+<script src="netchat.js"></script>
+<style>
+ .menuw.fab{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:14px;z-index:40}
+ .fab>.btn{border-radius:999px;padding:10px 18px;box-shadow:0 6px 18px rgba(0,0,0,.28)}
+ main{padding-top:64px;max-width:980px;margin:0 auto}
+ .seg{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+ .seg button{padding:8px 16px;border-radius:999px}
+ .seg button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+ .chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:99px;background:var(--ac2);font-size:12.5px}
+ .chip.off{background:rgba(225,29,72,.14);color:var(--er)}
+ .item{display:flex;align-items:center;gap:12px;padding:12px 14px;margin:8px 0;border:1px solid var(--bd);border-radius:12px;background:var(--sf);cursor:pointer}
+ .item:hover{border-color:var(--ac)}
+ .avc{width:40px;height:40px;border-radius:50%;background:var(--ac2);color:var(--ac);display:grid;place-items:center;font-weight:700;flex:none}
+ .grow{flex:1;min-width:0}
+ .un{min-width:22px;height:22px;padding:0 6px;border-radius:99px;background:#e11d48;color:#fff;font-size:12px;display:inline-grid;place-items:center}
+ .bar2{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}.bar2 b{flex:1}
+ .msgs{display:flex;flex-direction:column;gap:8px;height:calc(100vh - 330px);min-height:220px;overflow-y:auto;padding:12px;border:1px solid var(--bd);border-radius:12px;background:var(--sf)}
+ .b{max-width:86%;padding:8px 11px;border-radius:12px 12px 12px 3px;background:var(--in);align-self:flex-start;overflow-wrap:anywhere}
+ .b.me{align-self:flex-end;background:var(--ac2);border-radius:12px 12px 3px 12px}
+ .b img,.b video{max-width:100%;border-radius:8px}.b audio{max-width:100%}
+ .meta{font-size:11.5px;color:var(--mu);margin-top:3px}
+ .act2{display:flex;gap:4px;margin-top:4px}.act2 button{padding:1px 7px;font-size:13px;border:0;background:transparent}
+ .re{display:inline-block;background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:0 7px;margin:3px 3px 0 0;font-size:13px}
+ .re.mine{border-color:var(--ac)}
+ .pick{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}.pick button{padding:2px 7px;font-size:12px}
+ .comp{display:flex;gap:6px;margin-top:8px;align-items:center}.comp input[type=text]{flex:1}
+ .rec{background:var(--er);color:#fff}
+ .ban{background:rgba(245,179,1,.16);border:1px solid rgba(245,179,1,.6);border-radius:10px;padding:8px 12px;font-weight:700;margin:8px 0}
+ .vg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin:8px 0}
+ .vt{position:relative;background:#000;border-radius:10px;overflow:hidden;min-height:130px;display:grid;place-items:center}
+ .vt video{width:100%;max-height:220px;object-fit:cover;display:block}
+ .vt span{position:absolute;left:8px;bottom:6px;color:#fff;font-size:12px;background:rgba(0,0,0,.55);padding:1px 7px;border-radius:8px}
+ .vt .av2{color:#fff;font-size:28px;font-weight:700}
+ .ctl{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+ .rmsgs{height:240px;min-height:160px}
+ pre.mn{white-space:pre-wrap;font:13px/1.45 ui-monospace,monospace;margin:0 0 10px;max-height:50vh;overflow:auto}
+ .pg label.l{display:block;margin:4px 0}
+ .ev{font-size:12.5px;margin:2px 0}
+ .pg-netchat main{max-width:1200px;padding:64px 12px 12px}
+ .wa{display:grid;grid-template-columns:340px 1fr;height:calc(100vh - 170px);height:calc(100dvh - 170px);min-height:420px;border:1px solid var(--bd);border-radius:14px;overflow:hidden;background:var(--sf)}
+ .wa[hidden],#v[hidden]{display:none}
+ .wl{display:flex;flex-direction:column;border-right:1px solid var(--bd);min-height:0}
+ .wlh{padding:10px 10px 6px}.wlh input{width:100%;border-radius:99px}
+ .wseg{display:flex;gap:6px;padding:0 10px 8px;overflow-x:auto}
+ .wseg{gap:4px}.wseg button{padding:6px 9px;font-size:13px;border-radius:99px;white-space:nowrap}
+ .wseg button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+ .wlist{flex:1;overflow-y:auto;min-height:0}
+ .wlist .item{margin:0;border:0;border-bottom:1px solid var(--bd);border-radius:0}
+ .wlist .item.on{background:var(--ac2)}
+ .wlist .tm{font-size:11.5px;color:var(--mu);white-space:nowrap}
+ .wlfoot{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--bd);margin:0}
+ .wc{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg)}
+ .wph{margin:auto;text-align:center;padding:20px}.wph div{font-size:52px}
+ .wch{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--bd);background:var(--sf)}
+ .wch b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .wb{display:none}
+ .wc .msgs{flex:1;height:auto;min-height:0;border:0;border-radius:0;background:transparent}
+ .wc .comp{padding:8px 10px;margin:0;border-top:1px solid var(--bd);background:var(--sf)}
+ .wc .pg{margin:8px}
+ @media (max-width:1024px){
+  .wa{grid-template-columns:1fr;height:calc(100vh - 175px);height:calc(100dvh - 175px)}
+  .wa .wc{display:none}.chat-open .wa .wl{display:none}.chat-open .wa .wc{display:flex}
+  .wb{display:inline-flex}
+  .chat-open #tabs,.chat-open .bar2{display:none}
+  .chat-open .wa{height:calc(100vh - 84px);height:calc(100dvh - 84px)}
+ }
+</style>
+</head>
+<body class="pg-netchat">
+<div class="menuw fab">
+  <button class="btn p" onclick="toggleMenu(event)" aria-haspopup="true">☰</button>
+  <div class="menu" id="menu">
+    <button onclick="addContacto()">Adicionar contacto</button>
+    <button onclick="tab('reunioes')">Agendar reunião</button>
+    <button onclick="verificar()">Verificar cadeia de acordos</button>
+    <hr>
+    <button onclick="tema()">Claro/Escuro</button>
+  </div>
+</div>
+
+<main>
+  <div class="card hide" id="deny" style="max-width:480px;margin:40px auto;text-align:center"><b>Sem sessão iniciada</b><br><span class="hint">Entre no sistema para usar as mensagens.</span></div>
+  <div id="ok" class="hide">
+    <div class="bar2"><span class="chip" id="net"></span><span class="hint">As mensagens e os registos são apagados automaticamente após 24 horas (os acordos ficam guardados).</span></div>
+    <div class="seg" id="tabs"></div>
+    <div class="wa" id="wa">
+      <aside class="wl">
+        <div class="wlh"><input id="wq" placeholder="Pesquisar contactos" oninput="vContactos()"></div>
+        <div class="wseg" id="wseg"></div>
+        <div class="wlist" id="wlist"></div>
+        <label class="hint wlfoot"><input type="checkbox" id="woc" onchange="ST.verOc=this.checked;vContactos()"> Mostrar contactos ocultos</label>
+      </aside>
+      <section class="wc" id="wconv"></section>
+    </div>
+    <div id="v"></div>
+  </div>
+</main>
+
+<div class="ov" id="m"><div class="md" id="mb"></div></div>
+<div id="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',3200)}
+const showM=h=>{$('mb').innerHTML=h;$('m').classList.add('on')},closeM=()=>$('m').classList.remove('on');
+function toggleMenu(e){e.stopPropagation();$('menu').classList.toggle('on')}
+document.addEventListener('click',()=>$('menu').classList.remove('on'));
+function tema(){const d=document.documentElement,t=d.dataset.t==='dark'?'light':'dark';d.dataset.t=t;localStorage.setItem('tema',t)}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeM()});
+document.querySelectorAll('.ov').forEach(o=>o.addEventListener('mousedown',e=>{if(e.target===o)closeM()}));
+
+let ME=null,ST={tab:'contactos',sub:'novos',chat:null,perm:false,pick:null,verOc:false,room:null,rec:null,cache:{}};
+const ini=n=>(String(n||'?').trim()[0]||'?').toUpperCase();
+const MODOS={audio:'Áudio',video:'Câmera (vídeo)',mensagens:'Mensagens'};
+const nome=id=>NC.nomeDe(id);
+
+/* ====================== navegação ====================== */
+function renderTabs(){
+  const T=[['contactos','Conversas'],['reunioes','Reuniões'],['acordos','Acordos']];
+  $('tabs').innerHTML=ST.room?'':T.map(([k,t])=>`<button class="${ST.tab===k?'on':''}" onclick="tab('${k}')">${t}</button>`).join('');
+}
+function tab(k){if(ST.room)return toast('Saia da reunião primeiro.');ST.tab=k;ST.chat=null;ST.perm=false;render()}
+async function render(){
+  ME=NC.me();
+  $('deny').classList.toggle('hide',!!ME);$('ok').classList.toggle('hide',!ME);
+  if(!ME)return;
+  await netChip();renderTabs();
+  const split=!ST.room&&ST.tab==='contactos';
+  $('wa').hidden=!split;$('v').hidden=split;
+  $('ok').classList.toggle('chat-open',split&&!!ST.chat);
+  if(ST.room)return vSala();
+  if(split){
+    await vContactos();
+    if(ST.chat)await vChat();
+    else $('wconv').innerHTML='<div class="wph"><div>💬</div><b>NetChat</b><p class="hint">Escolha um contacto para conversar.</p></div>';
+    return;
+  }
+  if(ST.tab==='reunioes')return vReunioes();
+  return vAcordos();
+}
+async function netChip(){
+  const on=NC.online(),pend=(await NC.all('outbox')).filter(m=>m.de===ME.id).length;
+  $('net').className='chip'+(on?'':' off');
+  $('net').textContent=(on?'● Online':'● Sem rede')+(pend?` · ${pend} pendente(s)`:'');
+}
+let tmr=null;
+function refresh(){clearTimeout(tmr);tmr=setTimeout(async()=>{
+  if(!NC.me())return render();
+  await netChip();
+  if(ST.room)return refreshSala();
+  if(ST.tab==='contactos'){await vContactos();if(ST.chat)await refreshMsgs();return}
+  if(ST.tab==='reunioes')vReunioes(true);else vAcordos();
+},120)}
+NC.on(refresh);
+
+/* ====================== contactos ====================== */
+const nm=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+async function vContactos(){
+  const cs=await NC.contactos(),ms=await NC.all('msgs');
+  const un=id=>ms.filter(m=>m.de===id&&m.para===ME.id&&m.status!=='visualizado').length;
+  const now=Date.now(),D=864e5;
+  const vis=cs.filter(c=>ST.verOc||!c.oculto);
+  /* Conversas = conversa atual (últimas 24 h) · Antigas = conversa antiga · Contactos = todos */
+  const SEG={conversas:c=>c.ultima&&now-c.ultima<D,antigas:c=>c.ultima&&now-c.ultima>=D,contactos:()=>true};
+  const T={conversas:'Conversas',antigas:'Antigas',contactos:'Contactos'};
+  const n=k=>vis.filter(SEG[k]).length;
+  if(!ST.subAuto){ST.subAuto=true;ST.sub=n('conversas')?'conversas':n('antigas')?'antigas':'contactos'}
+  if(!SEG[ST.sub])ST.sub='contactos';
+  const q=nm($('wq').value);
+  const l=vis.filter(SEG[ST.sub]).filter(c=>!q||nm(c.nome+' '+(c.tel||'')).includes(q))
+    .sort((a,b)=>ST.sub==='contactos'?a.nome.localeCompare(b.nome):(b.ultima-a.ultima));
+  $('woc').checked=!!ST.verOc;
+  $('wseg').innerHTML=Object.keys(T).map(k=>`<button class="${ST.sub===k?'on':''}" onclick="ST.sub='${k}';vContactos()">${T[k]} (${n(k)})</button>`).join('');
+  $('wlist').innerHTML=l.map(c=>`<div class="item ${c.id===ST.chat?'on':''}" onclick="abrirChat(${c.id})"><span class="avc">${esc(ini(c.nome))}</span><div class="grow"><b>${esc(c.nome)}</b>${NC.categoria(c)==='novos'?' <span class="tg">Novo</span>':''}${c.bloq?' <span class="tg r">Bloqueado</span>':''}${c.oculto?' <span class="tg">Oculto</span>':''}<div class="hint">${esc(ST.sub==='contactos'?(c.role||c.tel||''):(c.tel||''))}</div></div><div style="text-align:right">${c.ultima&&ST.sub!=='contactos'?`<div class="tm">${esc(NC.fmt(c.ultima))}</div>`:''}${un(c.id)?`<span class="un">${un(c.id)}</span>`:''}</div></div>`).join('')||'<p class="hint" style="padding:14px">Nenhum contacto nesta lista.</p>';
+}
+function addContacto(){
+  if(!ME)return;
+  showM(`<h2>Adicionar contacto</h2><p class="hint">Indique o telefone de um colega da sua empresa que já tenha conta no sistema.</p><label>Telefone</label><input id="at" type="tel" placeholder="+244 9xx xxx xxx"><div class="alert" id="ae" style="display:none"></div><div class="acts"><button class="btn" onclick="closeM()">Cancelar</button><button class="btn p" onclick="doAdd()">Adicionar</button></div>`);
+}
+async function doAdd(){
+  const r=await NC.adicionarPorTelefone($('at').value);
+  if(!r.ok){const e=$('ae');e.textContent=r.motivo;e.style.display='block';return}
+  closeM();toast(r.nome+' adicionado(a) aos contactos.');ST.tab='contactos';ST.sub='contactos';render();
+}
+
+/* ====================== chat ====================== */
+async function abrirChat(id){ST.chat=id;ST.perm=false;ST.pick=null;render()}
+async function vChat(){
+  const cs=await NC.contactos(),c=cs.find(x=>x.id===ST.chat)||{id:ST.chat,nome:nome(ST.chat),tel:'',bloq:false,oculto:false};
+  const mine=await NC.regrasDe(ME.id),p=mine.perm[c.id]||{};
+  const pm=ST.perm?`<div class="card pg" style="margin-bottom:8px"><b>Privacidade deste contacto</b>
+   <label class="l"><input type="checkbox" ${c.oculto?'checked':''} onchange="NC.ocultoMeu(${c.id},this.checked)"> Ocultar da minha lista</label>
+   <label class="l"><input type="checkbox" ${mine.ocultarDe.includes(c.id)?'checked':''} onchange="NC.mudarRegra('ocultarDeMim',${c.id},this.checked)"> Ocultar o meu contacto a este utilizador (não me vê na lista dele)</label>
+   <label class="l"><input type="checkbox" ${c.bloq?'checked':''} onchange="NC.mudarRegra('bloq',${c.id},this.checked)"> Bloquear contacto (impede qualquer comunicação)</label>
+   <div class="hint" style="margin-top:6px">Este contacto pode enviar-me:</div>
+   <label class="l"><input type="checkbox" ${p.ficheiro===false?'':'checked'} onchange="NC.mudarRegra('ficheiro',${c.id},this.checked)"> Ficheiros e imagens</label>
+   <label class="l"><input type="checkbox" ${p.audio===false?'':'checked'} onchange="NC.mudarRegra('audio',${c.id},this.checked)"> Áudios</label>
+   <label class="l"><input type="checkbox" ${p.video===false?'':'checked'} onchange="NC.mudarRegra('video',${c.id},this.checked)"> Vídeos</label></div>`:'';
+  $('wconv').innerHTML=`<div class="wch"><button class="btn wb" onclick="ST.chat=null;ST.perm=false;ST.pick=null;render()" aria-label="Voltar">←</button><span class="avc">${esc(ini(c.nome))}</span><b>${esc(c.nome)}</b>${(!c.bloq&&c.tel)?`<a class="btn" href="tel:${esc(String(c.tel).replace(/\s/g,''))}">📞 Ligar</a>`:''}<button class="btn" onclick="ST.perm=!ST.perm;vChat()" title="Privacidade">⚙️</button></div>${pm}
+  <div class="msgs" id="msgs"></div>
+  ${c.bloq?'<p class="warn" style="color:var(--er);font-weight:600">Contacto bloqueado: comunicação impedida.</p>':`<div class="comp"><input type="text" id="inp" placeholder="Escreva uma mensagem" onkeydown="if(event.key==='Enter')sendTxt()"><button class="btn p" onclick="sendTxt()">Enviar</button><button class="btn ${ST.rec?'rec':''}" id="bRec" onclick="gravar()" title="Gravar áudio">${ST.rec?'⏹ Parar':'🎙'}</button><label class="btn" title="Anexar ficheiro">📎<input type="file" hidden accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png,.mp4" onchange="sendFile(this)"></label></div>`}`;
+  ST.first=true;await refreshMsgs();
+}
+const REA=(m)=>{const g={};(m.re||[]).forEach(r=>{(g[r.e]=g[r.e]||[]).push(r.u)});return Object.entries(g).map(([e,us])=>`<span class="re ${us.includes(ME.id)?'mine':''}" title="${NC.RN[e]}: ${us.map(nome).join(', ')}">${e} ${us.length}</span>`).join('')};
+const PICK=(id,fn)=>ST.pick===id?'<div class="pick">'+NC.ALL.map(e=>`<button class="btn" title="${NC.RN[e]}" onclick="${fn}('${id}','${e}')">${e} ${NC.RN[e]}</button>`).join('')+'</div>':'';
+function msgH(m){
+  const me=m.de===ME.id;let b='';
+  if(m.tipo==='audio')b=`<audio controls src="${m.data}"></audio>${m.transcricao?'<div class="meta">Transcrição: '+esc(m.transcricao)+'</div>':''}`;
+  else if(m.tipo==='video')b=`<video controls src="${m.data}"></video>`;
+  else if(m.tipo==='ficheiro')b=(m.mime||'').startsWith('image')?`<img src="${m.data}" alt="${esc(m.nome)}">`:`<b>📄 ${esc(m.nome)}</b><div class="row" style="margin:4px 0"><a class="btn" href="${m.data}" download="${esc(m.nome)}">Descarregar</a>${(m.mime||'').includes('pdf')?`<button class="btn" onclick="previa('${m.id}')">Pré-visualizar</button>`:''}</div>`;
+  else b=esc(m.texto).replace(/\n/g,'<br>');
+  const stt=me?({pendente:'🕒 Enviado (local)',entregue:'✔️ Entregue',visualizado:'👀 Visualizado',falhou:'⚠️ Não enviada: '+esc(m.motivo||'')})[m.status]:'';
+  return `<div class="b ${me?'me':''}">${b}<div class="meta">Enviado ${m.dh}${m.dhRec?' · Receção '+m.dhRec:''}${m.dhVisto?' · Visto '+m.dhVisto:''} ${stt}</div>${REA(m)}<div class="act2"><button title="Reagir" onclick="ST.pick=ST.pick==='${m.id}'?null:'${m.id}';refreshMsgs(true)">😊</button><button title="Reencaminhar" onclick="fwd('${m.id}')">↪</button><button title="Fixar como Acordo Oficial" onclick="fixar('${m.id}')">🔒</button></div>${PICK(m.id,'reagirMsg')}</div>`;
+}
+async function refreshMsgs(keep){
+  const box=$('msgs');if(!box||!ST.chat)return;
+  const ms=await NC.conversa(ST.chat);ST.cache={};ms.forEach(m=>ST.cache[m.id]=m);
+  const near=box.scrollHeight-box.scrollTop-box.clientHeight<80;
+  box.innerHTML=ms.map(msgH).join('')||'<p class="hint">Sem mensagens nas últimas 24 horas. Escreva a primeira.</p>';
+  if(ST.first||near){box.scrollTop=box.scrollHeight;ST.first=false}
+  if(!document.hidden&&await NC.marcarVistas(ST.chat)){/* atualiza estado do remetente */}
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&ST.chat)refreshMsgs()});
+function reagirMsg(id,e){ST.pick=null;NC.reagir('msgs',id,e)}
+async function sendTxt(){
+  const i=$('inp');if(!i||!i.value.trim())return;
+  const r=await NC.enviar(ST.chat,{tipo:'texto',texto:i.value.trim()});
+  if(!r.ok)return toast(r.motivo);
+  i.value='';if(r.offline)toast('Sem rede: mensagem guardada como pendente 🕒');
+}
+function sendFile(el){
+  const f=el.files[0];el.value='';if(!f)return;
+  if(f.size>8e6)return toast('Ficheiro acima de 8 MB.');
+  const tipo=f.type.startsWith('video')?'video':'ficheiro',r=new FileReader();
+  r.onload=async()=>{const x=await NC.enviar(ST.chat,{tipo,data:r.result,nome:f.name,mime:f.type});if(!x.ok)return toast(x.motivo);if(x.offline)toast('Sem rede: ficheiro guardado como pendente 🕒')};
+  r.readAsDataURL(f);
+}
+async function previa(id){const m=ST.cache[id];if(!m)return;const b=await (await fetch(m.data)).blob();window.open(URL.createObjectURL(b),'_blank')}
+/* gravação de áudio com transcrição ao vivo */
+async function gravar(){
+  if(ST.rec){ST.rec.stop();ST.rec=null;$('bRec').textContent='🎙';$('bRec').classList.remove('rec');return}
+  const v=await NC.podeEnviar(ME.id,ST.chat,'audio');if(!v.ok)return toast(v.motivo);
+  try{
+    const st=await navigator.mediaDevices.getUserMedia({audio:true}),mr=new MediaRecorder(st),ch=[],cid=ST.chat;let tr='',sr=null;
+    mr.ondataavailable=e=>ch.push(e.data);
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(SR){try{sr=new SR();sr.lang='pt-PT';sr.continuous=true;sr.onresult=e=>{tr=[...e.results].map(x=>x[0].transcript).join(' ')};sr.start()}catch(e){sr=null}}
+    mr.onstop=()=>{st.getTracks().forEach(t=>t.stop());try{sr&&sr.stop()}catch(e){}
+      const f=new FileReader();f.onload=async()=>{const x=await NC.enviar(cid,{tipo:'audio',data:f.result,transcricao:tr});if(!x.ok)toast(x.motivo);else if(x.offline)toast('Sem rede: áudio guardado como pendente 🕒')};
+      f.readAsDataURL(new Blob(ch,{type:mr.mimeType}))};
+    mr.start();ST.rec=mr;$('bRec').textContent='⏹ Parar';$('bRec').classList.add('rec');
+  }catch(e){toast('Microfone indisponível neste dispositivo.')}
+}
+/* partilha seletiva (reencaminhar) */
+async function fwd(id){
+  const cs=(await NC.contactos()).filter(c=>!c.bloq);
+  showM(`<h2>Reencaminhar para</h2>${cs.map(c=>`<div class="item" style="cursor:default"><span class="avc">${esc(ini(c.nome))}</span><span class="grow">${esc(c.nome)}</span><button class="btn p" onclick="doFwd('${id}',${c.id})">Enviar</button></div>`).join('')||'<p class="hint">Sem contactos.</p>'}`);
+}
+async function doFwd(id,cid){const r=await NC.reencaminhar(id,cid);closeM();toast(r.ok?'Mensagem reencaminhada.':r.motivo)}
+/* acordos */
+function fixar(id){
+  const m=ST.cache[id];if(!m)return;
+  const t=m.texto||m.transcricao||'';
+  showM(`<h2>Fixar como Acordo Oficial</h2><p class="hint">${m.tipo==='audio'&&!m.transcricao?'Este áudio não tem transcrição automática (o navegador não a suporta). Escreva o que foi acordado:':'Confirme o texto do acordo. Fica registado no cofre com data, hora e assinatura digital.'}</p><textarea id="at2" rows="5" style="width:100%">${esc(t.replace(/^↪ Reencaminhada: /,''))}</textarea><div class="acts"><button class="btn" onclick="closeM()">Cancelar</button><button class="btn p" onclick="doFixar('${m.tipo==='audio'?'audio':'texto'}')">Fixar acordo</button></div>`);
+}
+async function doFixar(origem){
+  const r=await NC.fixarAcordo(ST.chat,$('at2').value,origem);
+  if(!r.ok)return toast(r.motivo);
+  closeM();toast('Acordo fixado no cofre 🔒 — aguarda a assinatura de '+nome(ST.chat));
+}
+
+/* ====================== reuniões ====================== */
+function dtLocal(t){const d=new Date(t-new Date().getTimezoneOffset()*6e4);return d.toISOString().slice(0,16)}
+async function vReunioes(soLista){
+  const cs=(await NC.contactos()).filter(c=>!c.bloq),ms=(await NC.all('meets')).filter(m=>m.convidados.includes(ME.id)).sort((a,b)=>b.quando-a.quando);
+  const est={agendada:'Agendada',aovivo:'Ao vivo',terminada:'Terminada'};
+  const lista=ms.map(m=>{
+    const pode=m.estado==='aovivo'||(m.estado==='agendada'&&(m.quando<=Date.now()||m.host===ME.id));
+    return `<div class="item" style="cursor:default"><div class="grow"><b>${esc(m.titulo)}</b> <span class="tg ${m.estado==='aovivo'?'':m.estado==='terminada'?'r':'o'}">${est[m.estado]}</span><div class="hint">${NC.fmt(m.quando)} · ${MODOS[m.modo]} · organizador: ${esc(nome(m.host))} · ${m.convidados.length} participante(s)</div></div>
+    ${m.estado!=='terminada'?`<button class="btn p" ${pode?'':'disabled'} onclick="entrar('${m.id}')">${m.estado==='agendada'&&m.host===ME.id?'Iniciar':'Entrar'}</button>`:`<button class="btn" onclick="verMinuta('${m.id}')">Minuta</button>`}
+    ${m.host===ME.id&&m.estado!=='aovivo'?`<button class="btn d" onclick="delReuniao('${m.id}')">Eliminar</button>`:''}</div>`}).join('')||'<p class="hint">Sem reuniões nas últimas 24 horas.</p>';
+  if(soLista&&$('lstR')){$('lstR').innerHTML=lista;return}
+  $('v').innerHTML=`<div class="card"><b>Agendar reunião</b>
+   <div class="g2"><div><label>Título</label><input id="mt" placeholder="Reunião de equipa"></div><div><label>Data e hora</label><input id="mq" type="datetime-local" value="${dtLocal(Date.now()+2*6e4)}"></div></div>
+   <label>Modo de comunicação</label><select id="mm"><option value="mensagens">Apenas mensagens</option><option value="audio">Áudio</option><option value="video">Câmera (vídeo)</option></select>
+   <label>Convidados</label><div>${cs.map(c=>`<label class="l" style="display:inline-block;margin-right:12px"><input type="checkbox" class="cv" value="${c.id}"> ${esc(c.nome)}</label>`).join('')||'<span class="hint">Sem contactos disponíveis.</span>'}</div>
+   <div class="acts"><button class="btn p" onclick="agendar()">Agendar</button></div></div>
+   <h3 style="margin:16px 0 4px;font-size:15px">As minhas reuniões</h3><div id="lstR">${lista}</div>`;
+}
+async function agendar(){
+  const q=new Date($('mq').value).getTime(),conv=[...document.querySelectorAll('.cv:checked')].map(x=>Number(x.value));
+  if(!q)return toast('Defina a data e a hora.');if(!conv.length)return toast('Selecione os convidados.');
+  await NC.criarReuniao({titulo:$('mt').value.trim()||'Reunião',quando:q,modo:$('mm').value,convidados:conv});
+  toast('Reunião agendada. Os convidados online serão avisados à hora marcada.');render();
+}
+async function delReuniao(id){if(confirm('Eliminar esta reunião?')){await NC.eliminarReuniao(id);render()}}
+async function verMinuta(id){const x=await NC.minuta(id);if(!x)return toast('Minuta indisponível.');mostraMinuta(x)}
+function mostraMinuta(x){
+  const L=NC.minutaLinhas(x);window._mx=x;
+  showM(`<h2>Minuta da reunião</h2><pre class="mn" id="mnt">${esc(L.join('\n'))}</pre><div class="row"><button class="btn p" onclick="NC.baixar('minuta-'+(_mx.m.titulo||'reuniao').replace(/\\W+/g,'-')+'.pdf',NC.pdfBlob(NC.minutaLinhas(_mx)))">Descarregar PDF</button><button class="btn" onclick="navigator.clipboard.writeText($('mnt').textContent).then(()=>toast('Minuta copiada'))">Copiar</button><button class="btn" onclick="partilharMinuta()">Partilhar com participantes</button></div>`);
+}
+async function partilharMinuta(){
+  const x=window._mx,txt=NC.minutaLinhas(x).join('\n');let n=0;
+  for(const p of x.participantes){if(p.uid===ME.id)continue;const r=await NC.enviar(p.uid,{tipo:'texto',texto:txt});if(r.ok)n++}
+  toast('Minuta partilhada com '+n+' participante(s).');
+}
+
+/* ----- sala da reunião ----- */
+const RTC={bc:null,pcs:{},stream:null,sala:null,modo:'mensagens'};
+let clk=null,hb=null;
+async function entrar(id){
+  const m=await NC.entrarReuniao(id);if(!m)return toast('Não foi possível entrar nesta reunião.');
+  ST.room=id;ST.mic=true;ST.cam=m.modo==='video';ST.pick=null;
+  await vSala();rtcIniciar(m);
+  hb=setInterval(()=>NC.pingReuniao(id),5000);
+  clk=setInterval(()=>{const e=$('clk');if(e&&ST.inicio){const s=Math.floor((Date.now()-ST.inicio)/1000);e.textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}},1000);
+}
+async function vSala(){
+  const m=await NC.get('meets',ST.room);if(!m)return sairLocal();
+  const host=m.host===ME.id;ST.inicio=m.inicio||Date.now();
+  $('v').innerHTML=`<div class="bar2"><b>${esc(m.titulo)} <span class="tg">${MODOS[m.modo]}</span></b><span class="chip" id="clk">00:00</span></div>
+  <div class="ban hide" id="best"></div>
+  <div class="row" id="ptc" style="gap:6px"></div>
+  ${m.modo!=='mensagens'?'<div class="vg" id="vg"></div>':''}
+  <div class="ctl">${m.modo!=='mensagens'?`<button class="btn" id="bMic" onclick="tg('mic')">🎙 Silenciar</button>${m.modo==='video'?'<button class="btn" id="bCam" onclick="tg(\'cam\')">📷 Desligar câmara</button>':''}`:''}<button class="btn" onclick="sair()">Sair da chamada</button>${host?'<button class="btn d" onclick="encerrar()">Encerrar reunião (para todos)</button>':''}</div>
+  <div class="card"><b>Reagir ao vivo</b><div class="row" style="margin-top:6px"><select id="rp"></select></div><div class="pick" style="margin-top:2px">${NC.ALL.map(e=>`<button class="btn" title="${NC.RN[e]}" onclick="reagirP('${e}')">${e}</button>`).join('')}</div><div id="lr" class="hint" style="margin-top:6px"></div></div>
+  <div class="msgs rmsgs" id="rmsgs" style="margin-top:10px"></div>
+  <div class="comp"><input type="text" id="rin" placeholder="Mensagem para a reunião" onkeydown="if(event.key==='Enter')sendRoom()"><button class="btn p" onclick="sendRoom()">Enviar</button></div>`;
+  ST.firstR=true;await refreshSala();mostraLocal();
+}
+async function refreshSala(){
+  const m=await NC.get('meets',ST.room);
+  if(!m||m.estado==='terminada'){
+    const x=m&&await NC.minuta(m.id);rtcParar();clearInterval(hb);clearInterval(clk);ST.room=null;await render();
+    if(x){toast('O organizador encerrou a reunião.');mostraMinuta(x)}return;
+  }
+  const ps=(await NC.all('presenca')).filter(p=>p.meet===m.id),pts=await NC.pontos(m.id);
+  $('ptc').innerHTML=m.convidados.map(c=>{const p=ps.find(q=>q.uid===c),on=NC.presente(p)||c===ME.id;return `<span class="chip ${on?'':'off'}" title="${on?'Na sala':'Fora da sala'}">${on?'●':'○'} ${esc(nome(c))}${c===m.host?' 👑':''} · ${pts[c]||0} ⭐</span>`}).join('');
+  const sel=$('rp'),cur=sel.value;sel.innerHTML=m.convidados.filter(c=>c!==ME.id).map(c=>`<option value="${c}">${esc(nome(c))}</option>`).join('');if(cur)sel.value=cur;
+  const best=Object.entries(pts).sort((a,b)=>b[1]-a[1])[0],bn=$('best');
+  if(best&&best[1]>0){bn.classList.remove('hide');bn.textContent=`🏆 Melhor participante até agora: ${nome(Number(best[0]))} com ${best[1]} reações positivas`}else bn.classList.add('hide');
+  const ms=(await NC.all('mmsgs')).filter(x=>x.meet===m.id).sort((a,b)=>a.ts-b.ts),box=$('rmsgs'),near=box.scrollHeight-box.scrollTop-box.clientHeight<80;
+  box.innerHTML=ms.map(x=>`<div class="b ${x.de===ME.id?'me':''}"><b>${esc(nome(x.de))}</b><br>${esc(x.texto)}${x.tarefa?' <span class="tg o">Tarefa</span>':''}${REA(x)}<div class="act2"><button title="Reagir" onclick="ST.pick=ST.pick==='${x.id}'?null:'${x.id}';refreshSala()">😊</button><button title="Marcar como tarefa" onclick="NC.alternarTarefa('${x.id}')">✅</button></div>${PICK(x.id,'reagirRoom')}</div>`).join('')||'<p class="hint">Sem mensagens.</p>';
+  if(ST.firstR||near){box.scrollTop=box.scrollHeight;ST.firstR=false}
+  const rc=(await NC.all('mreac')).filter(r=>r.meet===m.id&&Date.now()-r.ts<30000).sort((a,b)=>b.ts-a.ts).slice(0,5);
+  $('lr').innerHTML=rc.map(r=>`<div class="ev">${r.e} ${esc(nome(r.de))} → ${esc(nome(r.para))}</div>`).join('');
+}
+function reagirRoom(id,e){ST.pick=null;NC.reagir('mmsgs',id,e)}
+async function reagirP(e){const p=Number($('rp').value);if(!p)return toast('Sem participantes para reagir.');await NC.reagirPessoa(ST.room,p,e);toast(`${e} enviado a ${nome(p)}`)}
+async function sendRoom(){const i=$('rin');if(!i.value.trim())return;await NC.msgReuniao(ST.room,i.value.trim());i.value=''}
+function tg(k){
+  ST[k]=!ST[k];
+  if(RTC.stream)(k==='mic'?RTC.stream.getAudioTracks():RTC.stream.getVideoTracks()).forEach(t=>t.enabled=ST[k]);
+  if(k==='mic')$('bMic').textContent=ST.mic?'🎙 Silenciar':'🔇 Ativar microfone';else $('bCam').textContent=ST.cam?'📷 Desligar câmara':'📷 Ligar câmara';
+}
+async function sair(){const id=ST.room;rtcParar();clearInterval(hb);clearInterval(clk);await NC.sairReuniao(id);ST.room=null;render()}
+function sairLocal(){rtcParar();clearInterval(hb);clearInterval(clk);ST.room=null;render()}
+async function encerrar(){
+  if(!confirm('Encerrar a reunião para todos os participantes?'))return;
+  const id=ST.room,ok=await NC.encerrarReuniao(id);if(!ok)return toast('Só o organizador pode encerrar.');
+  rtcParar();clearInterval(hb);clearInterval(clk);ST.room=null;const x=await NC.minuta(id);await render();if(x)mostraMinuta(x);
+}
+
+/* ----- vídeo/áudio em tempo real (WebRTC; sinalização entre separadores do mesmo navegador) ----- */
+function tile(uid,stream,local){
+  const g=$('vg');if(!g)return;let t=$('vt-'+uid);
+  if(!t){t=document.createElement('div');t.className='vt';t.id='vt-'+uid;t.innerHTML=`<div class="av2">${esc(ini(nome(uid)))}</div><span>${esc(nome(uid))}${local?' (eu)':''}</span>`;g.appendChild(t)}
+  let v=t.querySelector('video');if(!v){v=document.createElement('video');v.autoplay=true;v.playsInline=true;if(local)v.muted=true;t.insertBefore(v,t.firstChild);}
+  if(v.srcObject!==stream)v.srcObject=stream;
+  const av=t.querySelector('.av2');if(av)av.style.display=(stream.getVideoTracks().length?'none':'block');
+}
+function mostraLocal(){if(RTC.stream)tile(ME.id,RTC.stream,true)}
+function pcPara(peer){
+  if(RTC.pcs[peer])return RTC.pcs[peer];
+  const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});RTC.pcs[peer]=pc;
+  if(RTC.stream)RTC.stream.getTracks().forEach(t=>pc.addTrack(t,RTC.stream));
+  else{pc.addTransceiver('audio',{direction:'recvonly'});if(RTC.modo==='video')pc.addTransceiver('video',{direction:'recvonly'})}
+  pc.onicecandidate=e=>{if(e.candidate)RTC.bc.postMessage({sala:RTC.sala,de:ME.id,para:peer,tipo:'ice',c:e.candidate.toJSON()})};
+  pc.ontrack=e=>tile(peer,e.streams[0],false);
+  return pc;
+}
+async function oferecer(peer){const pc=pcPara(peer),o=await pc.createOffer();await pc.setLocalDescription(o);RTC.bc.postMessage({sala:RTC.sala,de:ME.id,para:peer,tipo:'offer',sdp:pc.localDescription.toJSON()})}
+async function rtcMsg(m){
+  if(m.sala!==RTC.sala||m.de===ME.id||(m.para&&m.para!==ME.id))return;
+  try{
+    if(m.tipo==='hello'){RTC.bc.postMessage({sala:RTC.sala,de:ME.id,para:m.de,tipo:'ola'});if(ME.id<m.de)oferecer(m.de)}
+    else if(m.tipo==='ola'){if(ME.id<m.de)oferecer(m.de)}
+    else if(m.tipo==='offer'){const pc=pcPara(m.de);await pc.setRemoteDescription(m.sdp);const a=await pc.createAnswer();await pc.setLocalDescription(a);RTC.bc.postMessage({sala:RTC.sala,de:ME.id,para:m.de,tipo:'answer',sdp:pc.localDescription.toJSON()})}
+    else if(m.tipo==='answer'){await pcPara(m.de).setRemoteDescription(m.sdp)}
+    else if(m.tipo==='ice'){await pcPara(m.de).addIceCandidate(m.c)}
+    else if(m.tipo==='bye'){if(RTC.pcs[m.de]){RTC.pcs[m.de].close();delete RTC.pcs[m.de]}const t=$('vt-'+m.de);if(t)t.remove()}
+  }catch(e){}
+}
+async function rtcIniciar(m){
+  RTC.sala=m.id;RTC.modo=m.modo;RTC.bc=new BroadcastChannel('gerentudo-rtc');RTC.bc.onmessage=e=>rtcMsg(e.data);
+  if(m.modo==='mensagens')return;
+  try{RTC.stream=await navigator.mediaDevices.getUserMedia({audio:true,video:m.modo==='video'});mostraLocal()}
+  catch(e){toast('Câmara ou microfone indisponíveis: entra apenas a ouvir.')}
+  RTC.bc.postMessage({sala:m.id,de:ME.id,tipo:'hello'});
+}
+function rtcParar(){
+  try{RTC.bc&&RTC.sala&&RTC.bc.postMessage({sala:RTC.sala,de:ME.id,tipo:'bye'})}catch(e){}
+  Object.values(RTC.pcs).forEach(p=>{try{p.close()}catch(e){}});RTC.pcs={};
+  if(RTC.stream)RTC.stream.getTracks().forEach(t=>t.stop());RTC.stream=null;
+  try{RTC.bc&&RTC.bc.close()}catch(e){}RTC.bc=null;RTC.sala=null;
+}
+window.addEventListener('beforeunload',()=>{if(ST.room){NC.sairReuniao(ST.room);rtcParar()}});
+
+/* ====================== cofre de acordos ====================== */
+async function vAcordos(){
+  const ac=(await NC.all('acordos')).filter(a=>a.partes.includes(ME.id)).sort((a,b)=>b.seq-a.seq);
+  $('v').innerHTML=`<div class="bar2"><b>Cofre de Acordos Digitais</b><button class="btn" onclick="verificar()">Verificar integridade</button></div>
+  <p class="hint">Cada acordo guarda data, hora, texto (ou transcrição do áudio) e a assinatura digital das duas partes, ligado ao registo anterior por um hash. Qualquer alteração é detetada.</p>
+  ${ac.map(a=>{const outro=a.partes.find(p=>p!==ME.id),eu=a.assinaturas[ME.id],el=a.assinaturas[outro];return `<div class="card" style="margin:8px 0"><b>Acordo #${a.seq}</b> <span class="tg ${eu&&el?'':'o'}">${eu&&el?'Assinado pelas duas partes':'Aguarda assinatura'}</span>
+   <div class="hint">${a.dh} · ${esc(a.nomes.join(' e '))} · ${a.origem==='audio'?'áudio transcrito':'texto'}</div><p style="margin:8px 0;white-space:pre-wrap">${esc(a.texto)}</p>
+   <div class="hint">${a.partes.map((p,i)=>`${esc(a.nomes[i])}: ${a.assinaturas[p]?'✔ assinou '+NC.fmt(a.assinaturas[p].ts):'⏳ por assinar'}`).join(' · ')}</div><div class="hint mono" style="word-break:break-all">hash ${a.hash.slice(0,32)}…</div>
+   <div class="row" style="margin-top:6px">${!eu?`<button class="btn p" onclick="assinarA('${a.id}')">Assinar</button>`:''}<button class="btn" onclick="pdfA('${a.id}')">Exportar PDF</button></div></div>`}).join('')||'<p class="hint">Ainda não há acordos. Numa conversa, clique em 🔒 numa mensagem ou áudio para fixar um acordo.</p>'}`;
+}
+async function assinarA(id){const ok=await NC.assinarAcordo(id);toast(ok?'Acordo assinado digitalmente ✔️':'Não foi possível assinar.')}
+async function pdfA(id){const a=await NC.get('acordos',id);NC.baixar('acordo-'+a.seq+'.pdf',NC.pdfBlob(NC.acordoLinhas(a)))}
+async function verificar(){
+  const r=await NC.verificarCadeia();
+  showM(`<h2>Verificação da cadeia</h2><p>${r.ok?'✔️ Cadeia íntegra: '+r.total+' registo(s), nenhum foi alterado e todas as assinaturas são válidas.':'⚠️ Cadeia comprometida:'}</p>${r.falhas.map(f=>`<p class="hint">• ${esc(f)}</p>`).join('')}<div class="acts"><button class="btn p" onclick="closeM()">Fechar</button></div>`);
+}
+
+/* ====================== arranque ====================== */
+NC.init();
+window.addEventListener('online',render);window.addEventListener('offline',render);
+(async()=>{
+  await NC.open();await render();
+  const e=sessionStorage.getItem('nc.entrar');
+  if(e){sessionStorage.removeItem('nc.entrar');entrar(e)}
+  if(window.top===window.self)NC.vigiar({onAlert:m=>{toast('Reunião “'+m.titulo+'” começou');if(!ST.room)showM(`<h2>🔔 Reunião a começar</h2><p><b>${esc(m.titulo)}</b><br>${MODOS[m.modo]} · organizador ${esc(nome(m.host))}</p><div class="acts"><button class="btn" onclick="closeM()">Mais tarde</button><button class="btn p" onclick="closeM();entrar('${m.id}')">Entrar agora</button></div>`)}});
+})();
+</script>
+</body>
+</html>

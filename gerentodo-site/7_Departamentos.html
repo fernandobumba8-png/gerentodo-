@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="pt-AO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Departamentos</title>
+<link rel="stylesheet" href="estilo.css">
+<script src="filtros.js" defer></script>
+<script src="preferencias.js"></script>
+<script src="modais.js"></script>
+<script src="escopo.js"></script>
+<style>
+ /* Botão Menu flutuante no canto superior direito */
+ .menuw.fab{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:14px;z-index:40}
+ .fab>.btn{border-radius:999px;padding:10px 18px;box-shadow:0 6px 18px rgba(0,0,0,.28)}
+ main{padding-top:64px}
+</style>
+</head>
+<body class="pg-departamentos">
+<div class="menuw fab">
+  <button class="btn p" onclick="toggleMenu(event)" aria-haspopup="true">☰</button>
+  <div class="menu" id="menu">
+    <button onclick="openCad('d')">Cadastrar</button>
+    <button onclick="openRel()">Gerir relatório</button>
+    <hr>
+    <button onclick="exportCSV()">Exportar CSV</button>
+    <hr>
+  </div>
+</div>
+<main>
+  <div class="filters">
+    <input id="fq" placeholder="Pesquisar nome, código, responsável" oninput="render()">
+    <select id="fa" onchange="render()"></select>
+    <select id="fe" onchange="render()"><option value="">Estado</option><option>Ativo</option><option>Inativo</option></select>
+    <button class="btn" onclick="['fq','fa','fe'].forEach(i=>$(i).value='');render()">Limpar filtros</button>
+  </div>
+  <section class="cards" id="cards"></section>
+  <div class="card" style="margin-bottom:14px"><b style="font-size:15px">Consumo do mês por departamento</b><div id="chart" style="margin-top:8px"></div></div>
+  <p class="hint" id="count"></p>
+  <div class="tw"><table><thead><tr id="thead"></tr></thead><tbody id="tb"></tbody></table></div>
+</main>
+
+<div class="ov" id="mCad"><div class="md">
+  <h2>Cadastro</h2>
+  <div class="row" style="margin-bottom:6px"><button class="btn" id="tbd" onclick="tab('d')">Departamentos</button><button class="btn" id="tba" onclick="tab('a')">Áreas</button><button class="btn" id="tbc" onclick="tab('c')">Categorias e subcategorias</button></div>
+  <datalist id="dla"></datalist>
+
+  <div id="pd">
+    <label>Nome do departamento *</label><input id="dn"><div class="hint" id="dnH"></div>
+    <label>Área *</label><input id="da" list="dla">
+    <div class="g2"><div><label>Responsável</label><input id="dr"></div><div><label>Telefone / email</label><input id="dt"></div></div>
+    <div class="g2"><div><label>Localização</label><input id="dl" placeholder="Piso, sala, edifício"></div><div><label>Orçamento mensal (Kz)</label><input id="db" type="number" min="0"></div></div>
+    <label>Estado</label><select id="ds"><option>Ativo</option><option>Inativo</option></select>
+    <label>Observações</label><textarea id="dob" rows="2"></textarea>
+    <div class="acts"><button class="btn" onclick="fechar()">Fechar</button><button class="btn p" onclick="saveDep()">Salvar</button></div>
+  </div>
+
+  <div id="pa" style="display:none">
+    <label>Nome da área *</label><input id="an"><label>Descrição</label><input id="ad">
+    <div class="acts"><button class="btn p" onclick="saveArea()">Salvar</button></div>
+    <div id="alist" style="margin-top:12px"></div>
+    <div class="acts"><button class="btn" onclick="fechar()">Fechar</button></div>
+  </div>
+
+  <div id="pc" style="display:none">
+    <label>Categoria *</label><div class="row" style="flex-wrap:nowrap"><input id="cn"><input id="cc" type="color" value="#0f6b57" style="width:60px"></div>
+    <label>Descrição</label><input id="cd">
+    <div class="acts"><button class="btn p" onclick="saveCat()">Salvar categoria</button></div>
+    <label>Subcategoria: escolha a categoria e escreva o nome</label>
+    <div class="g2"><select id="sct"></select><input id="sn" placeholder="Nome da subcategoria"></div>
+    <div class="acts"><button class="btn p" onclick="saveSub()">Salvar subcategoria</button></div>
+    <div id="clist" style="margin-top:12px"></div>
+    <div class="acts"><button class="btn" onclick="fechar()">Fechar</button></div>
+  </div>
+</div></div>
+
+<div class="ov" id="mRel"><div class="md">
+  <h2>Gerir relatório</h2>
+  <div class="g2"><div><label>Departamento</label><select id="rd"></select></div><div><label>Área</label><select id="ra"></select></div></div>
+  <div class="g2"><div><label>Produto</label><input id="rp" placeholder="Nome do produto"></div><div><label>Categoria</label><select id="rc"></select></div></div>
+  <div class="g2"><div><label>Data inicial</label><input id="r1" type="date"></div><div><label>Data final</label><input id="r2" type="date"></div></div>
+  <p class="hint" id="rN"></p>
+  <div class="acts"><button class="btn d" onclick="descartarRel()">Descartar</button><button class="btn" onclick="outroFiltro()">Outro filtro</button><button class="btn p" onclick="finalizarRel()">Finalizar (PDF)</button></div>
+  <p class="hint">Abre a janela de impressão: escolha “Guardar como PDF” como destino.</p>
+</div></div>
+<div class="ov" id="mInfo"><div class="md" id="info"></div></div>
+<div id="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+function toggleMenu(e){e.stopPropagation();$('menu').classList.toggle('on')}
+document.addEventListener('click',()=>$('menu').classList.remove('on'));
+const DK='departamentos_v1',PK='produtos_v2';
+let D=JSON.parse(localStorage.getItem(DK)||'{"d":[],"a":[],"c":[],"sc":[]}');
+const P=()=>JSON.parse(localStorage.getItem(PK)||'{"p":[],"h":[]}');
+const saveD=()=>localStorage.setItem(DK,JSON.stringify(D));
+let sortK='id',sortDir=1,eDep=null,curTab='d';
+const kz=v=>(Number(v)||0).toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2}).replace(/\u00a0/g,'.')+' Kz';
+const norm=s=>(s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const esc=s=>(s||'').toString().replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtD=d=>d?d.split('-').reverse().join('/'):'';
+function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',2800)}
+const openM=id=>$(id).classList.add('on'),closeM=id=>$(id).classList.remove('on');
+const info=h=>{$('info').innerHTML=h;openM('mInfo')};
+const nid=a=>a.reduce((m,x)=>Math.max(m,x.id),0)+1;
+const areaN=id=>(D.a.find(a=>a.id===id)||{}).n||'—';
+
+/* saídas lidas do Produtos.html: o destino da saída é comparado com o nome do departamento */
+function saidas(d){
+  const X=P(),m=Object.fromEntries(X.p.map(p=>[p.id,p]));
+  return X.h.filter(h=>h.tipo==='Saída'&&norm(h.dest)===norm(d.n)).map(h=>({...h,p:m[h.pid]})).filter(h=>h.p);
+}
+const mesAtual=ts=>{const a=new Date(ts),b=new Date();return a.getMonth()===b.getMonth()&&a.getFullYear()===b.getFullYear()};
+const stat=d=>{const s=saidas(d).filter(h=>mesAtual(h.ts));return{n:s.length,v:s.reduce((t,h)=>t+h.qtd*h.p.cu,0)}};
+
+function render(){
+  const fa=$('fa'),v=fa.value;fa.innerHTML='<option value="">Área</option>'+D.a.map(a=>`<option value="${a.id}">${esc(a.n)}</option>`).join('');fa.value=v;
+  const q=norm($('fq').value);
+  const r=D.d.filter(d=>(!q||norm(d.n+' '+d.cod+' '+d.resp).includes(q))&&(!fa.value||d.aid==fa.value)&&(!$('fe').value||($('fe').value==='Ativo')===d.ativo));
+  const val={area:d=>areaN(d.aid),sm:d=>stat(d).n,vc:d=>stat(d).v};
+  r.sort((a,b)=>{const x=val[sortK]?val[sortK](a):a[sortK],y=val[sortK]?val[sortK](b):b[sortK];return(typeof x==='number'?x-y:norm(x).localeCompare(norm(y),'pt',{numeric:true}))*sortDir});
+  const C=[['id','ID'],['n','Nome'],['cod','Código'],['area','Área'],['resp','Responsável'],['sm','Saídas no mês'],['vc','Valor consumido'],['ativo','Estado'],['','Ação']];
+  $('thead').innerHTML=C.map(([k,t])=>`<th ${k?`onclick="sortBy('${k}')"`:''}>${t}${sortK===k?(sortDir>0?' ▲':' ▼'):''}</th>`).join('');
+  $('tb').innerHTML=r.map(d=>{const s=stat(d),ex=d.orc&&s.v>d.orc;return`<tr><td>${d.id}</td><td>${esc(d.n)}</td><td>${d.cod}</td><td>${esc(areaN(d.aid))}</td><td>${esc(d.resp)||'—'}</td><td>${s.n}</td><td ${ex?'style="color:var(--rd);font-weight:600" title="Acima do orçamento mensal"':''}>${kz(s.v)}</td><td><span class="tg ${d.ativo?'':'r'}">${d.ativo?'Ativo':'Inativo'}</span></td><td><button class="btn" onclick="acao(${d.id})">Ação</button></td></tr>`}).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--mu);padding:24px">Nenhum departamento. Use “Cadastrar” para criar o primeiro.</td></tr>';
+  $('count').textContent=r.length+' de '+D.d.length+' departamentos';
+  const all=D.d.map(stat);
+  $('cards').innerHTML=[[D.d.length,'Departamentos'],[D.d.filter(d=>d.ativo).length,'Ativos'],[all.reduce((s,x)=>s+x.n,0),'Saídas no mês'],[kz(all.reduce((s,x)=>s+x.v,0)),'Valor consumido no mês']].map(([a,b])=>`<div class="card"><b>${a}</b><span>${b}</span></div>`).join('');
+  const rk=D.d.map((d,i)=>({n:d.n,v:all[i].v})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v),mx=rk[0]?.v||1;
+  $('chart').innerHTML=rk.map(x=>`<div style="font-size:13px">${esc(x.n)} · ${kz(x.v)}<div class="bar" style="width:${Math.max(2,x.v/mx*100)}%"></div></div>`).join('')||'<span class="hint">Ainda não há saídas registadas com destino a um departamento.</span>';
+}
+function sortBy(k){sortDir=sortK===k?-sortDir:1;sortK=k;render()}
+
+/* cadastro */
+function tab(t){curTab=t;['d','a','c'].forEach(k=>{$('p'+k).style.display=k===t?'block':'none';$('tb'+k).classList.toggle('on',k===t)});
+  $('dla').innerHTML=D.a.map(a=>`<option value="${esc(a.n)}">`).join('');listA();listC()}
+function openCad(t,d){
+  eDep=d?d.id:null;const m={dn:'n',dr:'resp',dt:'tel',dl:'loc',db:'orc',dob:'ob'};
+  for(const k in m)$(k).value=d?(d[m[k]]??''):'';$('da').value=d?areaN(d.aid):'';$('ds').value=d&&!d.ativo?'Inativo':'Ativo';$('dnH').textContent='';
+  document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));tab(t);openM('mCad');
+}
+const dirty=()=>['dn','da','an','cn','sn'].some(i=>$(i).value);
+function fechar(){if(dirty()&&!confirm('Há dados preenchidos. Descartar e fechar?'))return;['dn','da','an','cn','sn'].forEach(i=>$(i).value='');closeM('mCad');render()}
+$('dn').addEventListener('input',()=>{$('dnH').textContent=D.d.some(d=>norm(d.n)===norm($('dn').value)&&d.id!==eDep)?'Já existe um departamento com este nome.':''});
+function getArea(n){let a=D.a.find(x=>norm(x.n)===norm(n));if(!a){a={id:nid(D.a),n:n.trim(),desc:''};D.a.push(a)}return a.id}
+function saveDep(){
+  document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));
+  const bad=['dn','da'].filter(i=>!$(i).value.trim());
+  if(D.d.some(d=>norm(d.n)===norm($('dn').value)&&d.id!==eDep))bad.push('dn');
+  if(bad.length){bad.forEach(i=>$(i).classList.add('err'));return toast('Corrija os campos destacados.')}
+  const o={n:$('dn').value.trim(),aid:getArea($('da').value),resp:$('dr').value.trim(),tel:$('dt').value.trim(),loc:$('dl').value.trim(),orc:+$('db').value||0,ativo:$('ds').value==='Ativo',ob:$('dob').value.trim()};
+  if(eDep){Object.assign(D.d.find(d=>d.id===eDep),o);toast('Departamento atualizado.');eDep=null}
+  else{const id=nid(D.d);D.d.push({id,cod:'DEP-'+String(id).padStart(3,'0'),...o});toast('Guardado com sucesso')}
+  saveD();['dn','da','dr','dt','dl','db','dob'].forEach(i=>$(i).value='');$('dnH').textContent='';tab('d');render();
+}
+function saveArea(){
+  const n=$('an').value.trim();if(!n)return $('an').classList.add('err');
+  if(D.a.some(a=>norm(a.n)===norm(n)))return toast('Esta área já existe.');
+  D.a.push({id:nid(D.a),n,desc:$('ad').value.trim()});saveD();$('an').value=$('ad').value='';toast('Guardado com sucesso');tab('a');render();
+}
+function listA(){$('alist').innerHTML=D.a.map(a=>`<div class="hl"><span><b>${esc(a.n)}</b> · ${D.d.filter(d=>d.aid===a.id).length} departamentos<br><span class="hint">${esc(a.desc)}</span></span><button class="btn d" onclick="delArea(${a.id})">Eliminar</button></div>`).join('')||'<p class="hint">Sem áreas.</p>'}
+function delArea(id){if(D.d.some(d=>d.aid===id))return toast('A área tem departamentos associados.');D.a=D.a.filter(a=>a.id!==id);saveD();listA();render()}
+const prodCount=(k,v)=>P().p.filter(p=>p[k]===v).length;
+function saveCat(){
+  const n=$('cn').value.trim();if(!n)return $('cn').classList.add('err');
+  if(D.c.some(c=>norm(c.n)===norm(n)))return toast('Esta categoria já existe.');
+  D.c.push({id:nid(D.c),n,desc:$('cd').value.trim(),cor:$('cc').value});saveD();$('cn').value=$('cd').value='';toast('Guardado com sucesso');listC()
+}
+function saveSub(){
+  const cid=+$('sct').value,n=$('sn').value.trim();if(!cid||!n)return toast('Escolha a categoria e escreva o nome.');
+  if(D.sc.some(s=>s.cid===cid&&norm(s.n)===norm(n)))return toast('Esta subcategoria já existe.');
+  D.sc.push({id:nid(D.sc),cid,n});saveD();$('sn').value='';toast('Guardado com sucesso');listC()
+}
+function listC(){
+  $('sct').innerHTML='<option value="">Categoria</option>'+D.c.map(c=>`<option value="${c.id}">${esc(c.n)}</option>`).join('');
+  $('clist').innerHTML=D.c.map(c=>`<div class="hl" style="flex-wrap:wrap"><span><span class="dot" style="background:${c.cor}"></span><b>${esc(c.n)}</b> · ${prodCount('c',c.n)} produtos</span><span><button class="btn" onclick="editCat(${c.id})">Editar</button> <button class="btn d" onclick="delCat(${c.id})">Eliminar</button></span></div>`+D.sc.filter(s=>s.cid===c.id).map(s=>`<div class="hl" style="padding-left:22px"><span>${esc(s.n)} · ${prodCount('sc',s.n)} produtos</span><span><button class="btn" onclick="editSub(${s.id})">Editar</button> <button class="btn" onclick="moveSub(${s.id})">Mover</button> <button class="btn d" onclick="delSub(${s.id})">Eliminar</button></span></div>`).join('')).join('')||'<p class="hint">Sem categorias.</p>';
+}
+function editCat(id){const c=D.c.find(x=>x.id===id),n=prompt('Nome da categoria:',c.n);if(!n||!n.trim())return;
+  if(D.c.some(x=>x.id!==id&&norm(x.n)===norm(n)))return toast('Esta categoria já existe.');
+  const X=P();X.p.forEach(p=>{if(p.c===c.n)p.c=n.trim()});localStorage.setItem(PK,JSON.stringify(X));c.n=n.trim();saveD();listC()}
+function delCat(id){const c=D.c.find(x=>x.id===id);if(D.sc.some(s=>s.cid===id)||prodCount('c',c.n))return toast('Não é possível eliminar: a categoria tem subcategorias ou produtos.');D.c=D.c.filter(x=>x.id!==id);saveD();listC()}
+function editSub(id){const s=D.sc.find(x=>x.id===id),n=prompt('Nome da subcategoria:',s.n);if(!n||!n.trim())return;
+  const X=P();X.p.forEach(p=>{if(p.sc===s.n)p.sc=n.trim()});localStorage.setItem(PK,JSON.stringify(X));s.n=n.trim();saveD();listC()}
+function delSub(id){const s=D.sc.find(x=>x.id===id);if(prodCount('sc',s.n))return toast('Não é possível eliminar: a subcategoria tem produtos.');D.sc=D.sc.filter(x=>x.id!==id);saveD();listC()}
+function moveSub(id){const s=D.sc.find(x=>x.id===id),n=prompt('Mover para a categoria (nome):\n'+D.c.map(c=>c.n).join(', '));if(!n)return;
+  const c=D.c.find(x=>norm(x.n)===norm(n));if(!c)return toast('Categoria não encontrada.');
+  const old=D.c.find(x=>x.id===s.cid),X=P();X.p.forEach(p=>{if(p.sc===s.n&&p.c===old.n)p.c=c.n});localStorage.setItem(PK,JSON.stringify(X));s.cid=c.id;saveD();listC();toast('Subcategoria movida.')}
+
+/* ação */
+function acao(id){
+  info(`<h2>Ação</h2>
+  <button class="btn li" onclick="detalhe(${id})">Ver detalhe</button>
+  <button class="btn li" onclick="hist(${id})">Histórico de saídas</button>
+  <a class="btn li" style="text-decoration:none;display:block" href="1_Produtos.html">Nova saída (abrir Produtos)</a>
+  <button class="btn li" onclick="closeM('mInfo');openCad('d',D.d.find(d=>d.id===${id}))">Editar</button>
+  <button class="btn li" onclick="toggle(${id})">Inativar / Ativar</button>
+  <button class="btn li d" onclick="eliminar(${id})">Eliminar</button>
+  
+  <div class="acts">
+  <button class="btn" onclick="closeM('mInfo')">Fechar</button>
+  </div>`);
+}
+const back=id=>`<div class="acts"><button class="btn" onclick="acao(${id})">Voltar</button></div>`;
+function detalhe(id){
+  const d=D.d.find(x=>x.id===id),s=stat(d),r=[['Código',d.cod],['Área',areaN(d.aid)],['Responsável',d.resp],['Telefone / email',d.tel],['Localização',d.loc],['Orçamento mensal',d.orc?kz(d.orc):''],['Consumido no mês',kz(s.v)+(d.orc&&s.v>d.orc?' (acima do orçamento)':'')],['Estado',d.ativo?'Ativo':'Inativo'],['Observações',d.ob]];
+  const top={};saidas(d).forEach(h=>top[h.p.n]=(top[h.p.n]||0)+h.qtd);
+  const tp=Object.entries(top).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  info(`<h2>${esc(d.n)}</h2>${r.map(([a,b])=>`<div class="hl"><span><span class="hint">${a}:</span> ${esc(b)||'—'}</span></div>`).join('')}<p class="hint">Produtos mais pedidos: ${tp.map(([n,q])=>esc(n)+' ('+q+')').join(', ')||'—'}</p>${back(id)}`);
+}
+function hist(id,a='',b=''){
+  const d=D.d.find(x=>x.id===id),l=saidas(d).filter(h=>(!a||h.ts>=new Date(a+'T00:00:00').getTime())&&(!b||h.ts<=new Date(b+'T23:59:59').getTime())).reverse();
+  info(`<h2>Saídas — ${esc(d.n)}</h2><div class="g2"><input type="date" value="${a}" onchange="hist(${id},this.value,'${b}')"><input type="date" value="${b}" onchange="hist(${id},'${a}',this.value)"></div>${l.map(h=>`<div class="hl"><span>${h.data} · <b>${esc(h.p.n)}</b> · ${h.qtd} ${h.p.um}<br><span class="hint">${esc(h.motivo)||'—'} · ${esc(h.sol)||'—'}</span></span></div>`).join('')||'<p class="hint">Sem saídas neste período.</p>'}${back(id)}`);
+}
+function toggle(id){const d=D.d.find(x=>x.id===id);d.ativo=!d.ativo;saveD();closeM('mInfo');render();toast(d.ativo?'Departamento ativado.':'Departamento inativado.')}
+function eliminar(id){
+  const d=D.d.find(x=>x.id===id);
+  info(saidas(d).length?`<h2>Não é possível eliminar</h2><p>Este departamento tem saídas associadas. Inative-o em vez de o apagar.</p><div class="acts"><button class="btn" onclick="closeM('mInfo')">Fechar</button><button class="btn p" onclick="toggle(${id})">Inativar</button></div>`:`<h2>Eliminar departamento</h2><p>Eliminar “${esc(d.n)}”?</p><div class="acts"><button class="btn" onclick="closeM('mInfo')">Cancelar</button><button class="btn d" onclick="D.d=D.d.filter(x=>x.id!==${id});saveD();closeM('mInfo');render();toast('Departamento eliminado.')">Eliminar</button></div>`);
+}
+
+/* relatório */
+let RF=[];const RIDS=['rd','ra','rp','rc','r1','r2'];
+function openRel(){
+  const f=(id,arr,t)=>$(id).innerHTML=`<option value="">${t}</option>`+arr.map(a=>`<option>${esc(a)}</option>`).join('');
+  f('rd',D.d.map(d=>d.n),'Todos');f('ra',D.a.map(a=>a.n),'Todas');f('rc',[...new Set([...D.c.map(c=>c.n),...P().p.map(p=>p.c)])].filter(Boolean),'Todas');
+  RIDS.forEach(i=>$(i).value='');RF=[];$('rN').textContent='';openM('mRel');
+}
+const curF=()=>Object.fromEntries(RIDS.map(i=>[i,$(i).value.trim()]));
+const emptyF=x=>!Object.values(x).some(Boolean);
+function nomeF(x,i){const per=x.r1||x.r2?(x.r1?fmtD(x.r1):'início')+' a '+(x.r2?fmtD(x.r2):'hoje'):'';return`Filtro ${i}: `+([x.rd,x.ra,x.rp&&'“'+x.rp+'”',x.rc,per].filter(Boolean).join(', ')||'Todos os departamentos')}
+function outroFiltro(){const x=curF();if(emptyF(x))return toast('Escolha pelo menos um filtro.');RF.push(x);RIDS.forEach(i=>$(i).value='');$('rN').textContent=RF.length+' filtro(s) adicionado(s).'}
+function descartarRel(){RF=[];RIDS.forEach(i=>$(i).value='');$('rN').textContent='';closeM('mRel')}
+function finalizarRel(){
+  const x0=curF();if(!emptyF(x0))RF.push(x0);if(!RF.length)return toast('Escolha pelo menos um filtro.');
+  const now=new Date(),h=now.toLocaleDateString('pt-PT');let gi=0,gv=0,html='';
+  RF.forEach((x,i)=>{
+    const t1=x.r1?new Date(x.r1+'T00:00:00').getTime():0,t2=x.r2?new Date(x.r2+'T23:59:59').getTime():0;let si=0,sv=0;
+    const rows=D.d.filter(d=>(!x.rd||d.n===x.rd)&&(!x.ra||areaN(d.aid)===x.ra)).map(d=>{
+      const s=saidas(d).filter(k=>(!x.rp||norm(k.p.n).includes(norm(x.rp)))&&(!x.rc||k.p.c===x.rc)&&(!t1||k.ts>=t1)&&(!t2||k.ts<=t2));
+      const it=s.reduce((t,k)=>t+k.qtd,0),v=s.reduce((t,k)=>t+k.qtd*k.p.cu,0);si+=it;sv+=v;
+      return s.length||!(x.rp||x.rc||t1||t2)?`<tr><td>${d.cod}</td><td>${esc(d.n)}</td><td>${esc(areaN(d.aid))}</td><td class="r">${s.length}</td><td class="r">${it}</td><td class="r">${kz(v)}</td></tr>`:''}).join('')||'<tr><td colspan="6">Nenhum consumo neste filtro.</td></tr>';
+    gi+=si;gv+=sv;
+    html+=`<h3>${esc(nomeF(x,i+1))}</h3><table><thead><tr><th>Código</th><th>Departamento</th><th>Área</th><th class="r">Saídas</th><th class="r">Itens</th><th class="r">Valor (custo)</th></tr></thead><tbody>${rows}<tr class="s"><td colspan="4">Subtotal</td><td class="r">${si}</td><td class="r">${kz(sv)}</td></tr></tbody></table>`;
+  });
+  const w=window.open('','_blank');if(!w)return toast('O navegador bloqueou a janela. Permita pop-ups e tente de novo.');
+  w.document.write(`<!DOCTYPE html><html lang="pt"><head><meta charset="utf-8"><title>Relatório de Departamentos ${h.replace(/\//g,'-')}</title><style>body{font:12px "Segoe UI",Arial,sans-serif;color:#111;margin:24px}h1{font-size:18px;margin:0}h3{margin:20px 0 6px;font-size:13px}p{margin:2px 0 12px;color:#555}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #ccc;padding:5px 6px;text-align:left}th{background:#eef3f0}.r{text-align:right}.s td{font-weight:700;border-top:2px solid #333}@media print{@page{size:A4 landscape;margin:12mm}}</style></head><body><h1>Relatório de Departamentos do dia ${h}</h1><p>Emitido em ${now.toLocaleString('pt-PT')}</p>${html}<h3 style="text-align:right">Total geral: ${gi} itens · ${kz(gv)}</h3><script>onload=()=>setTimeout(()=>print(),300)<\/script></body></html>`);
+  w.document.close();RF=[];closeM('mRel');
+}
+function dl(n,t,ty){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:ty}));a.download=n;a.click()}
+function exportCSV(){const h=['ID','Nome','Código','Área','Responsável','Orçamento','Estado','Saídas no mês','Valor consumido'];dl('departamentos.csv','\ufeff'+[h,...D.d.map(d=>{const s=stat(d);return[d.id,d.n,d.cod,areaN(d.aid),d.resp,d.orc,d.ativo?'Ativo':'Inativo',s.n,s.v]})].map(l=>l.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\n'),'text/csv')}
+function backup(){dl('departamentos-backup-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify(D),'application/json')}
+function restore(i){const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.d||!d.a||!d.c)throw 0;if(confirm('Substituir os dados atuais?')){D=d;saveD();render();toast('Dados importados.')}}catch(e){toast('Ficheiro inválido.')}};r.readAsText(f)}
+function toggleTheme(){const d=document.documentElement,t=d.dataset.t==='dark'?'light':'dark';d.dataset.t=t;localStorage.setItem('tema',t)}
+document.documentElement.dataset.t=localStorage.getItem('tema')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.ov.on').forEach(o=>o.id==='mCad'?fechar():closeM(o.id))});
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="pt-AO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Configuração avançada</title>
+<link rel="stylesheet" href="estilo.css">
+<script src="preferencias.js"></script>
+<script src="modais.js"></script>
+<style>
+ /* Botão Menu flutuante no canto superior direito */
+ .menuw.fab{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:14px;z-index:40}
+ .fab>.btn{border-radius:999px;padding:10px 18px;box-shadow:0 6px 18px rgba(0,0,0,.28)}
+ main{padding-top:64px;max-width:900px;margin:0 auto}
+ .sec{margin-bottom:14px}
+ .sec h2{font-size:16px;margin:0 0 4px}
+ .seg{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+ .seg button{padding:8px 16px;border-radius:999px}
+ .seg button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+ .rg{display:flex;align-items:center;gap:12px;margin-top:8px}
+ .rg input[type=range]{flex:1;padding:0}
+ .rg output{min-width:52px;text-align:right;font-weight:600}
+ .gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-top:10px}
+ .gal button{height:80px;border-radius:10px;border:2px solid var(--bd);background-size:cover;background-position:center;padding:0;position:relative;cursor:pointer}
+ .gal button.on{border-color:var(--ac);box-shadow:0 0 0 2px var(--ac)}
+ .gal button span{position:absolute;left:0;right:0;bottom:0;padding:3px 6px;font-size:11px;color:#fff;background:rgba(0,0,0,.55);border-radius:0 0 8px 8px;text-align:left}
+ .cr{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
+ .cr input[type=color]{width:46px;height:36px;padding:2px;cursor:pointer}
+ .box{margin-top:12px;padding-top:12px;border-top:1px solid var(--bd)}
+</style>
+</head>
+<body class="pg-configuracao">
+<div class="menuw fab">
+  <button class="btn p" onclick="toggleMenu(event)" aria-haspopup="true">☰</button>
+  <div class="menu" id="menu">
+    <button onclick="repor()">Repor predefinições</button>
+  </div>
+</div>
+
+<main>
+  <div class="card sec hide" id="aviso"><b>Sem sessão iniciada</b><br><span class="hint">Entre no sistema para guardar as suas preferências.</span></div>
+
+  <div id="cfg">
+    
+
+    <section class="card sec">
+      <h2>Aparência</h2>
+      <div class="hint">Modo claro ou escuro da sua conta.</div>
+      <div class="seg" id="sTema">
+        <button data-v="light">Claro</button><button data-v="dark">Escuro</button><button data-v="">Automático</button>
+      </div>
+    </section>
+
+    <section class="card sec">
+      <h2>Fundo da página</h2>
+      <div class="seg" id="sFundo">
+        <button data-v="nenhum">Sem fundo</button><button data-v="cor">Cor</button><button data-v="img">Imagem</button>
+      </div>
+
+      <div class="box hide" id="bCor">
+        <label>Cor de fundo</label>
+        <div class="cr"><input type="color" id="cFundo" value="#f4f6fb"><span class="hint">Escolha a cor que mais lhe agrada.</span></div>
+      </div>
+
+      <div class="box hide" id="bImg">
+        <label>Imagens incluídas</label>
+        <div class="gal" id="gal"></div>
+
+        <div class="box">
+          <label>Do seu computador / telemóvel</label>
+          <input type="file" id="fFile" accept="image/*">
+        </div>
+
+        <div class="box">
+          <label>Da internet</label>
+          <div class="cr" style="margin-top:4px">
+            <input id="qTerm" placeholder="O que procura? (ex.: Luanda, natureza, abstrato)" style="flex:1;min-width:200px">
+            <button class="btn" onclick="procurar('unsplash')">Unsplash</button>
+            <button class="btn" onclick="procurar('pexels')">Pexels</button>
+            <button class="btn" onclick="procurar('pixabay')">Pixabay</button>
+          </div>
+          <div class="hint" style="margin-top:6px">Abre o site num novo separador. Quando encontrar uma imagem, clique nela com o botão direito → “Copiar endereço da imagem” e cole aqui:</div>
+          <div class="cr">
+            <input id="uUrl" placeholder="https://…/imagem.jpg" style="flex:1;min-width:200px">
+            <button class="btn p" onclick="usarUrl()">Usar esta imagem</button>
+          </div>
+        </div>
+
+        <div class="box">
+          <label>Ajuste da imagem</label>
+          <div class="seg" id="sAjuste"><button data-v="cover">Cobrir o ecrã</button><button data-v="repetir">Repetir (mosaico)</button></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card sec">
+      <h2>Brilho</h2>
+      <div class="hint">Escurece ou clareia toda a página.</div>
+      <div class="rg"><input type="range" id="rBrilho" min="60" max="130" step="5"><output id="oBrilho"></output></div>
+    </section>
+
+    <section class="card sec">
+      <h2>Letra</h2>
+      <label>Tamanho da letra</label>
+      <div class="rg"><input type="range" id="rFonte" min="85" max="130" step="5"><output id="oFonte"></output></div>
+      <div class="box">
+        <label>Cor da letra</label>
+        <div class="cr"><input type="color" id="cTexto" value="#0f172a"><button class="btn" onclick="set({corTexto:''});load()">Automática</button><span class="hint" id="hTexto"></span></div>
+      </div>
+      <div class="box">
+        <label for="sFam">Tipo de letra</label>
+        <select id="sFam">
+          <option value="padrao">Padrão do sistema</option><option value="serifada">Serifada (clássica)</option><option value="mono">Monoespaçada</option>
+          <option value="arredondada">Arredondada</option><option value="legivel">Muito legível</option>
+        </select>
+      </div>
+    </section>
+
+    <section class="card sec">
+      <h2>Cores e cartões</h2>
+      <label>Cor de destaque (botões, ligações, realces)</label>
+      <div class="cr"><input type="color" id="cDest" value="#7c3aed"><button class="btn" onclick="set({destaque:''});load()">Padrão</button></div>
+      <div class="box">
+        <label>Transparência dos cartões e tabelas</label>
+        <div class="hint">Útil com imagem de fundo. Valores altos podem dificultar a leitura.</div>
+        <div class="rg"><input type="range" id="rCart" min="0" max="35" step="5"><output id="oCart"></output></div>
+      </div>
+    </section>
+
+    <section class="card sec">
+      <h2>Pré-visualização</h2>
+      <p>Assim fica o texto normal. <span class="hint">E assim o texto secundário.</span> <a href="#" onclick="return false">Uma ligação</a>.</p>
+      <div class="row"><button class="btn p">Botão principal</button><button class="btn">Botão normal</button><span class="tg">Etiqueta</span></div>
+    </section>
+  </div>
+</main>
+<div id="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const P=window.__prefs;
+function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',2600)}
+function toggleMenu(e){e.stopPropagation();$('menu').classList.toggle('on')}
+document.addEventListener('click',()=>$('menu').classList.remove('on'));
+
+const logged=()=>!!P.uid();
+function set(patch){if(!logged())return;if(!P.set(patch))toast('Não foi possível guardar (espaço cheio?). Tente uma imagem mais pequena.')}
+
+/* grupos de botões (tema, fundo, ajuste) */
+function seg(id,key){
+  $(id).onclick=e=>{const b=e.target.closest('button[data-v]');if(!b)return;set({[key]:b.dataset.v});load()};
+}
+seg('sTema','tema');seg('sFundo','fundo');seg('sAjuste','ajuste');
+
+/* sliders e cores */
+function bindRange(id,out,key,unit){
+  $(id).oninput=()=>{$(out).textContent=$(id).value+unit;set({[key]:+$(id).value})};
+}
+bindRange('rBrilho','oBrilho','brilho','%');bindRange('rFonte','oFonte','fonte','%');bindRange('rCart','oCart','cartoes','%');
+$('cFundo').oninput=e=>set({fundo:'cor',cor:e.target.value});
+$('cTexto').oninput=e=>set({corTexto:e.target.value});
+$('cDest').oninput=e=>set({destaque:e.target.value});
+$('sFam').onchange=e=>set({familia:e.target.value});
+
+/* galeria */
+$('gal').innerHTML=P.GALERIA.map(g=>`<button type="button" data-id="${g.id}" style="background-image:url('${g.url.replace(/'/g,'%27')}')" title="${g.nome}"><span>${g.nome}</span></button>`).join('');
+$('gal').onclick=e=>{const b=e.target.closest('button[data-id]');if(!b)return;const g=P.GALERIA.find(x=>x.id===b.dataset.id);set({fundo:'img',img:g.url});load()};
+
+/* imagem do dispositivo (reduzida para caber no armazenamento) */
+$('fFile').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  if(!/^image\//.test(f.type))return toast('Escolha um ficheiro de imagem.');
+  const r=new FileReader();
+  r.onload=()=>{const im=new Image();im.onload=()=>{
+    const k=Math.min(1,1600/Math.max(im.width,im.height)),c=document.createElement('canvas');
+    c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+    set({fundo:'img',img:c.toDataURL('image/jpeg',.72)});load();
+  };im.onerror=()=>toast('Imagem inválida.');im.src=r.result};
+  r.readAsDataURL(f);
+};
+
+/* imagem da internet */
+function procurar(site){
+  const q=encodeURIComponent($('qTerm').value.trim()||'fundo');
+  const u={unsplash:'https://unsplash.com/s/photos/'+q,pexels:'https://www.pexels.com/search/'+q+'/',pixabay:'https://pixabay.com/images/search/'+q+'/'}[site];
+  window.open(u,'_blank','noopener');
+}
+function usarUrl(){
+  const u=$('uUrl').value.trim();
+  if(!/^https?:\/\//i.test(u))return toast('Cole o endereço completo da imagem (começa por https://).');
+  const im=new Image();
+  im.onload=()=>{set({fundo:'img',img:u});load();toast('Imagem aplicada.')};
+  im.onerror=()=>toast('Não foi possível abrir essa imagem. Confirme se é o endereço da imagem.');
+  im.src=u;
+}
+
+function repor(){if(!logged())return;if(!confirm('Repor todas as suas preferências?'))return;P.reset();load();toast('Preferências repostas.')}
+
+/* mostra o estado atual */
+function load(){
+  const ok=logged();
+  $('aviso').classList.toggle('hide',ok);
+  document.querySelectorAll('#cfg input,#cfg select,#cfg button').forEach(x=>x.disabled=!ok);
+  const p=P.get();
+  const mark=(id,v)=>$(id).querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  mark('sTema',p.tema||'');mark('sFundo',p.fundo);mark('sAjuste',p.ajuste);
+  $('bCor').classList.toggle('hide',p.fundo!=='cor');$('bImg').classList.toggle('hide',p.fundo!=='img');
+  if(p.cor)$('cFundo').value=p.cor;
+  $('rBrilho').value=p.brilho;$('oBrilho').textContent=p.brilho+'%';
+  $('rFonte').value=p.fonte;$('oFonte').textContent=p.fonte+'%';
+  $('rCart').value=p.cartoes;$('oCart').textContent=p.cartoes+'%';
+  if(p.corTexto)$('cTexto').value=p.corTexto;$('hTexto').textContent=p.corTexto?'':'Automática (segue o tema)';
+  if(p.destaque)$('cDest').value=p.destaque;
+  $('sFam').value=p.familia;
+  $('gal').querySelectorAll('button').forEach(b=>{const g=P.GALERIA.find(x=>x.id===b.dataset.id);b.classList.toggle('on',p.fundo==='img'&&p.img===g.url)});
+}
+window.addEventListener('storage',e=>{if(e.key==='authvault.prefs.v1')load()});
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-AO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Recuperar conta — Gerentodo</title>
+<link rel="stylesheet" href="estilo.css">
+<script src="preferencias.js"></script>
+<script src="senha.js"></script>
+<style>
+ body{min-height:100vh}
+ .rc{max-width:460px;margin:0 auto;padding:36px 16px 48px}
+ .rc .brand{display:flex;align-items:center;justify-content:center;gap:10px;font-weight:800;font-size:22px;margin-bottom:18px}
+ .rc .brand img{height:64px;width:auto}
+ .rc h2{margin:0 0 6px;font-size:20px}
+ .rc .step{display:none}.rc .step.on{display:block}
+ .canal{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+ .canal button{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:12px;text-align:left;font-size:16px}
+ .canal button span{font-size:24px}
+ .canal button small{display:block;color:var(--mu);font-size:12.5px}
+ .err{display:none;margin-top:10px;padding:9px 12px;border-radius:8px;background:rgba(225,29,72,.12);color:var(--er);font-weight:600}
+ .okb{margin-top:10px;padding:9px 12px;border-radius:8px;background:var(--ac2)}
+ .teste{margin-top:10px;padding:9px 12px;border-radius:8px;background:rgba(245,179,1,.18);border:1px dashed #d99a00;font-size:13px}
+ .code{letter-spacing:.35em;font-size:22px;text-align:center}
+ .dados{margin:10px 0;padding:10px 12px;border:1px solid var(--bd);border-radius:10px;background:var(--in)}
+ .dados div{margin:2px 0}
+ .acts{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+ .back{display:block;margin-top:16px;text-align:center}
+</style>
+</head>
+<body>
+<div class="rc">
+  <div class="brand"><img src="lodo_gerentodo.png" alt="" onerror="this.style.display='none'">Gerentodo</div>
+  <div class="card">
+
+    <div class="step on" id="s1">
+      <h2>Recuperar a conta</h2>
+      <p class="hint">Esqueceu o e-mail, o telefone ou a senha? Escolha como quer recuperar a sua conta.</p>
+      <div class="canal">
+        <button type="button" class="btn" onclick="escolher('email')"><span>✉️</span><div>Por e-mail<small>Enviamos um código para o seu e-mail</small></div></button>
+        <button type="button" class="btn" onclick="escolher('whatsapp')"><span>💬</span><div>Por WhatsApp<small>Enviamos um código para o seu WhatsApp</small></div></button>
+      </div>
+    </div>
+
+    <div class="step" id="s2">
+      <h2 id="t2"></h2>
+      <p class="hint" id="h2"></p>
+      <label for="dest" id="ld"></label><input id="dest" autocomplete="off" onkeydown="if(event.key==='Enter')enviar()">
+      <div class="err" id="e2"></div>
+      <div class="acts"><button type="button" class="btn" onclick="passo(1)">Voltar</button><button type="button" class="btn p" id="bEnv" onclick="enviar()">Enviar código</button></div>
+    </div>
+
+    <div class="step" id="s3">
+      <h2>Digite o código</h2>
+      <p id="m3"></p>
+      <div class="teste" id="tst" style="display:none"></div>
+      <label for="cod">Código de 6 dígitos</label><input id="cod" class="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" onkeydown="if(event.key==='Enter')verificar()">
+      <div class="err" id="e3"></div>
+      <div class="acts"><button type="button" class="btn" id="bRe" onclick="reenviar()">Reenviar código</button><button type="button" class="btn p" onclick="verificar()">Verificar</button></div>
+      <a class="back" href="#" onclick="passo(2);return false">Alterar o <span id="alt"></span></a>
+    </div>
+
+    <div class="step" id="s4">
+      <h2>Conta confirmada</h2>
+      <div class="dados" id="dados"></div>
+      <p class="hint">Defina uma nova senha para voltar a entrar.</p>
+      <label for="pw">Nova senha</label><input id="pw" type="password" autocomplete="new-password" oninput="forca()" data-pw data-nocopy>
+      <div class="bar"><i></i><i></i><i></i><i></i></div><div class="hint" id="pf">Mín. 10 caracteres, com maiúscula, minúscula, número e símbolo.</div>
+      <label for="pw2">Confirmar a nova senha</label><input id="pw2" type="password" autocomplete="new-password" onkeydown="if(event.key==='Enter')guardar()" data-pw data-nocopy data-conf="pw">
+      <div class="err" id="e4"></div>
+      <div class="acts"><button type="button" class="btn p" onclick="guardar()">Guardar nova senha</button></div>
+    </div>
+
+    <div class="step" id="s5">
+      <h2>Senha alterada ✔️</h2>
+      <p>A sua nova senha já está ativa. Já pode entrar na sua conta.</p>
+      <div class="acts"><a class="btn p" href="conta.html">Ir para o login</a></div>
+    </div>
+
+  </div>
+  <a class="back" href="conta.html">← Voltar ao login</a>
+</div>
+<div id="toast"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const KU='authvault.users.v3',KL='authvault.log.v3';
+const dig=t=>String(t||'').replace(/\D/g,'');
+const users=()=>{try{const u=JSON.parse(localStorage.getItem(KU)||'[]');return Array.isArray(u)?u:[]}catch(e){return[]}};
+const modoTeste=()=>window.RECUPERACAO_MODO?window.RECUPERACAO_MODO==='teste':['localhost','127.0.0.1','[::1]',''].includes(location.hostname);
+const URL_ENVIAR='/.netlify/functions/enviar-codigo',URL_VERIFICAR='/.netlify/functions/verificar-codigo';
+const VALIDADE=10*60*1000,ESPERA=60,MAX_TENTATIVAS=5;
+let S={canal:null,conta:null,token:null,teste:null,exp:0,tentativas:0,verificado:false},tmr=null;
+
+function passo(n){document.querySelectorAll('.rc .step').forEach(e=>e.classList.remove('on'));$('s'+n).classList.add('on');['e2','e3','e4'].forEach(i=>$(i).style.display='none');if(n===2)setTimeout(()=>$('dest').focus(),50);if(n===3)setTimeout(()=>$('cod').focus(),50)}
+function erro(id,m){const e=$(id);e.textContent=m;e.style.display=m?'block':'none'}
+function mascEmail(e){const [u,d]=String(e).split('@');return (u[0]||'')+'•••@'+(d||'')}
+function mascTel(t){const d=dig(t);return '•••••• '+d.slice(-3)}
+function numeroWa(t){const d=dig(t);return d.length===9?'244'+d:d}
+
+function escolher(canal){
+  S={canal,conta:null,token:null,teste:null,exp:0,tentativas:0,verificado:false};
+  const wa=canal==='whatsapp';
+  $('t2').textContent=wa?'Recuperar por WhatsApp':'Recuperar por e-mail';
+  $('h2').textContent=wa?'Digite o número de telefone da sua conta. Enviaremos um código para o seu WhatsApp.':'Digite o e-mail da sua conta. Enviaremos um código para esse e-mail.';
+  $('ld').textContent=wa?'Número de telefone':'E-mail';
+  $('dest').type=wa?'tel':'email';$('dest').placeholder=wa?'+244 9xx xxx xxx':'nome@exemplo.com';$('dest').value='';
+  $('alt').textContent=wa?'número':'e-mail';
+  passo(2);
+}
+function achar(canal,v){
+  const t=String(v).trim();if(!t)return null;
+  return users().find(u=>canal==='email'?String(u.email||'').trim().toLowerCase()===t.toLowerCase():(dig(t).length>=9&&dig(u.phone).slice(-9)===dig(t).slice(-9)))||null;
+}
+async function despachar(){
+  const c=S.conta,destino=S.canal==='email'?c.email:numeroWa(c.phone);
+  if(modoTeste()){S.teste=String(Math.floor(100000+Math.random()*900000));S.token=null;S.exp=Date.now()+VALIDADE;return}
+  const r=await fetch(URL_ENVIAR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({canal:S.canal,destino})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok||!j.ok)throw new Error(j.erro||'O serviço de envio não está disponível neste momento. Tente mais tarde.');
+  S.token=j.token;S.teste=null;S.exp=Date.now()+VALIDADE;
+}
+async function enviar(){
+  const wa=S.canal==='whatsapp',v=$('dest').value;
+  if(wa?dig(v).length<9:!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()))return erro('e2',wa?'Digite um número de telefone válido.':'Digite um e-mail válido.');
+  const c=achar(S.canal,v);
+  if(!c)return erro('e2',wa?'Não existe uma conta com esse número.':'Não existe uma conta com esse e-mail.');
+  if(c.status!=='Ativo')return erro('e2','Esta conta está inativa. Contacte o administrador da sua empresa.');
+  S.conta=c;erro('e2','');
+  const b=$('bEnv');b.disabled=true;b.textContent='A enviar…';
+  try{await despachar()}catch(e){b.disabled=false;b.textContent='Enviar código';return erro('e2',e.message)}
+  b.disabled=false;b.textContent='Enviar código';
+  mostraCodigo();
+}
+function mostraCodigo(){
+  const wa=S.canal==='whatsapp',c=S.conta;
+  $('m3').innerHTML=`Digite o código que enviámos para o seu ${wa?'WhatsApp':'e-mail'} <b>${esc(wa?mascTel(c.phone):mascEmail(c.email))}</b>. O código vale 10 minutos.`;
+  const t=$('tst');
+  if(S.teste){t.style.display='block';t.innerHTML=`<b>MODO DE TESTE</b> (só neste computador, nunca no site publicado)<br>Código: <b>${S.teste}</b>`}else t.style.display='none';
+  $('cod').value='';S.tentativas=0;passo(3);iniciaEspera();
+}
+function iniciaEspera(){
+  clearInterval(tmr);let s=ESPERA;const b=$('bRe');b.disabled=true;
+  const t=()=>{b.textContent=s>0?`Reenviar código (${s}s)`:'Reenviar código';if(s<=0){b.disabled=false;clearInterval(tmr)}s--};
+  t();tmr=setInterval(t,1000);
+}
+async function reenviar(){
+  const b=$('bRe');b.disabled=true;
+  try{await despachar();mostraCodigo();toast('Novo código enviado.')}catch(e){erro('e3',e.message);iniciaEspera()}
+}
+async function verificar(){
+  const cod=$('cod').value.trim();
+  if(!/^\d{6}$/.test(cod))return erro('e3','Digite os 6 dígitos do código.');
+  if(Date.now()>S.exp)return erro('e3','O código expirou. Peça um novo código.');
+  if(S.tentativas>=MAX_TENTATIVAS)return erro('e3','Demasiadas tentativas. Peça um novo código.');
+  S.tentativas++;
+  let ok=false;
+  if(S.teste)ok=cod===S.teste;
+  else{
+    try{const r=await fetch(URL_VERIFICAR,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:S.token,codigo:cod})});const j=await r.json().catch(()=>({}));ok=r.ok&&!!j.ok}
+    catch(e){return erro('e3','Não foi possível verificar o código. Tente novamente.')}
+  }
+  if(!ok)return erro('e3',`Código incorreto. Restam ${Math.max(0,MAX_TENTATIVAS-S.tentativas)} tentativa(s).`);
+  S.verificado=true;clearInterval(tmr);
+  const c=S.conta;
+  $('dados').innerHTML=`<div><b>${esc(c.name)}</b></div><div>E-mail: ${esc(c.email||'—')}</div><div>Telefone: ${esc(c.phone||'—')}</div>${c.company?`<div>Empresa: ${esc(c.company)}</div>`:''}`;
+  passo(4);setTimeout(()=>$('pw').focus(),60);
+}
+const forte=p=>p.length>=10&&/[a-z]/.test(p)&&/[A-Z]/.test(p)&&/\d/.test(p)&&/[^A-Za-z0-9]/.test(p);
+function forca(){
+  const p=$('pw').value,n=[p.length>=10,/[A-Z]/.test(p),/[a-z]/.test(p),/\d/.test(p),/[^A-Za-z0-9]/.test(p)].filter(Boolean).length;
+  const c=['#e11d48','#e11d48','#d97706','#d97706','#2563eb','#059669'][n];
+  document.querySelectorAll('#s4 .bar i').forEach((b,i)=>b.style.background=i<Math.ceil(n*4/5)&&p?c:'var(--bd)');
+  $('pf').textContent=p?['Muito fraca','Muito fraca','Fraca','Razoável','Forte','Muito forte'][n]:'Mín. 10 caracteres, com maiúscula, minúscula, número e símbolo.';
+}
+const hex=a=>Array.from(new Uint8Array(a),b=>b.toString(16).padStart(2,'0')).join('');
+async function credenciais(p){
+  if(!crypto||!crypto.subtle)throw new Error('O navegador não suporta Web Crypto (use HTTPS).');
+  const salt=hex(crypto.getRandomValues(new Uint8Array(16))),e=new TextEncoder();
+  const k=await crypto.subtle.importKey('raw',e.encode(p),'PBKDF2',false,['deriveBits']);
+  return{salt,hash:hex(await crypto.subtle.deriveBits({name:'PBKDF2',salt:e.encode(salt),iterations:210000,hash:'SHA-256'},k,256))};
+}
+async function guardar(){
+  if(!S.verificado||!S.conta)return passo(1);
+  const p=$('pw').value;
+  if(!forte(p))return erro('e4','Senha fraca: use 10+ caracteres com maiúscula, minúscula, número e símbolo.');
+  if(p!==$('pw2').value)return erro('e4','A confirmação não coincide com a senha.');
+  try{
+    const cr=await credenciais(p),us=users(),u=us.find(x=>x.id===S.conta.id);
+    if(!u)return erro('e4','Conta não encontrada.');
+    if(u.status!=='Ativo')return erro('e4','Esta conta está inativa.');
+    Object.assign(u,cr);localStorage.setItem(KU,JSON.stringify(us));
+    try{const l=JSON.parse(localStorage.getItem(KL)||'[]');l.unshift(new Date().toLocaleTimeString('pt-PT')+' — Senha de '+u.name+' redefinida por recuperação de conta.');localStorage.setItem(KL,JSON.stringify(l.slice(0,8)))}catch(e){}
+    S={canal:null,conta:null,token:null,teste:null,exp:0,tentativas:0,verificado:false};
+    passo(5);
+  }catch(e){erro('e4',e.message||'Não foi possível guardar a nova senha.')}
+}
+function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',3000)}
+</script>
+</body>
+</html>
