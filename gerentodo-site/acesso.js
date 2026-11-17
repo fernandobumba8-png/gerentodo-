@@ -122,9 +122,13 @@ async function abrirConta(novo) {
   if (appAberta) return;
   appAberta = true;
   window.__novoLogin = !!novo;
-  try { await carregarScript('netchat.js'); await carregarScript('pacotes.js'); await carregarScript('conta-app.js'); }
-  catch (e) { appAberta = false; toast(e.message); }
+  try {
+    await Promise.all([carregarScript('netchat.js'), carregarScript('pacotes.js')]);
+    await carregarScript('conta-app.js');
+    fimBoot();
+  } catch (e) { appAberta = false; fimBoot(); toast(e.message); }
 }
+function fimBoot() { document.documentElement.classList.remove('chk'); }
 
 function abrirLogin() { showError('lErr', ''); openModal('mLogin'); $('lId').focus(); }
 function openReg() {
@@ -235,7 +239,6 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAllModa
   } catch (x) {}
   const h = location.hash;
   try { history.replaceState(null, '', location.pathname + location.search); } catch (x) {}
-  const gate = $('gate'); gate.style.visibility = 'hidden';
   let entrou = false;
   if (window.sb && window.GS) {
     try {
@@ -247,7 +250,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAllModa
       }
     } catch (x) { toast(GS.msg(x)); }
   } else toast('Não foi possível ligar ao servidor. Recarregue a página.');
-  gate.style.visibility = '';
   if (entrou) return abrirConta(false);
+  fimBoot();
   if (h === '#cadastro') openReg(); else if (h === '#entrar') abrirLogin();
 })();

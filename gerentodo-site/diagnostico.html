@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-AO" translate="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="google" content="notranslate">
+<title>Diagnóstico — Gerentodo</title>
+<style>
+ body{font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;margin:0 auto;padding:16px;max-width:640px;background:#f6f7fb;color:#111}
+ h1{font-size:21px;margin:6px 0}
+ button{padding:12px 16px;border:0;border-radius:10px;background:#7c3aed;color:#fff;font:inherit;font-weight:600;margin:6px 8px 6px 0}
+ .l{padding:8px 10px;margin:6px 0;border-radius:8px;background:#fff;border-left:5px solid #bbb;word-break:break-word}
+ .ok{border-color:#059669}.er{border-color:#e11d48;background:#fff1f2}.in{border-color:#d97706}
+ small{color:#555}img{max-width:120px;border-radius:8px;display:block;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>Diagnóstico de gravação</h1>
+<p><small>1) Entre na conta (noutro separador). 2) Volte a esta página e toque num botão. 3) Envie uma captura do resultado.</small></p>
+<button id="b1">Testar ligação e gravação</button>
+<button id="b2">Testar uma imagem</button>
+<input id="f" type="file" accept="image/*" hidden>
+<div id="out"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.9"></script>
+<script src="supabase-config.js"></script>
+<script>
+const out = document.getElementById('out');
+const L = (t, c) => { const d = document.createElement('div'); d.className = 'l ' + (c || ''); d.textContent = t; out.appendChild(d); return d; };
+const ok = t => L('✔ ' + t, 'ok'), er = t => L('✘ ' + t, 'er'), inf = t => L('ℹ ' + t, 'in');
+const ms = t0 => Math.round(performance.now() - t0) + ' ms';
+const msg = e => (e && (e.message || e.details || e.code)) || String(e);
+const kb = n => Math.round(n / 1024) + ' KB';
+
+async function base() {
+  out.innerHTML = '';
+  if (!window.sb) { er('A biblioteca do Supabase não carregou. Verifique a internet.'); return null; }
+  ok('Biblioteca do Supabase carregada.');
+  let t = performance.now();
+  const s = await sb.auth.getSession(), se = s.data && s.data.session;
+  if (!se) { er('Não há sessão iniciada. Entre primeiro na conta e volte aqui.'); return null; }
+  ok('Sessão iniciada (' + ms(t) + ').');
+  t = performance.now();
+  const p = await sb.from('perfis').select('id,nome,empresa_id,role').eq('id', se.user.id).maybeSingle();
+  if (p.error || !p.data) { er('Não consegui ler o perfil: ' + msg(p.error || 'o perfil não existe')); return null; }
+  ok('Perfil: ' + p.data.nome + ' (' + p.data.role + '), empresa nº ' + p.data.empresa_id + ' (' + ms(t) + ').');
+  return { emp: p.data.empresa_id, admin: p.data.role === 'Administrador' };
+}
+async function idaEVolta(emp, chave, valor) {
+  const t = performance.now();
+  let r = await sb.from('dados').upsert({ empresa_id: emp, chave: chave, valor: valor }, { onConflict: 'empresa_id,chave' });
+  if (r.error) throw new Error('ao gravar no servidor: ' + msg(r.error));
+  r = await sb.from('dados').select('valor').eq('empresa_id', emp).eq('chave', chave).maybeSingle();
+  const igual = !r.error && r.data && r.data.valor === valor;
+  await sb.from('dados').delete().eq('empresa_id', emp).eq('chave', chave);
+  if (r.error || !r.data) throw new Error('ao ler de volta: ' + msg(r.error || 'não encontrado'));
+  if (!igual) throw new Error('o valor lido do servidor é diferente do gravado');
+  return ms(t);
+}
+function espaco() {
+  let n = 0;
+  for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); n += k.length + (localStorage.getItem(k) || '').length; }
+  inf('Espaço usado neste aparelho (localStorage): cerca de ' + kb(n * 2) + ' de ~5000 KB.');
+  try { localStorage.setItem('diag_tmp', 'x'.repeat(1000000)); localStorage.removeItem('diag_tmp'); ok('Consegue guardar 1 MB neste aparelho.'); }
+  catch (e) { er('NÃO há espaço para guardar 1 MB neste aparelho (' + msg(e) + '). É por isso que as imagens não gravam.'); }
+}
+function pendentes(emp) {
+  try {
+    const p = JSON.parse(localStorage.getItem('authvault.sb.pend.' + emp) || '[]');
+    if (p.length) inf('Alterações ainda por enviar ao servidor: ' + p.length + ' (' + p.join(', ') + ').'); else ok('Não há alterações por enviar ao servidor.');
+  } catch (e) { /* ignora */ }
+}
+document.getElementById('b1').onclick = async () => {
+  try {
+    const c = await base(); if (!c) return;
+    pendentes(c.emp);
+    for (const n of [50000, 1500000]) {
+      try { ok('Gravar e ler ' + kb(n) + ' no servidor: ' + await idaEVolta(c.emp, '_diag', 'x'.repeat(n))); }
+      catch (e) { er('Gravar ' + kb(n) + ' falhou ' + msg(e)); }
+    }
+    if (c.admin) {
+      const g = await sb.from('empresas').select('id,logo').eq('id', c.emp).maybeSingle();
+      if (g.error || !g.data) er('Não consegui ler a empresa: ' + msg(g.error || 'sem dados'));
+      else {
+        const u = await sb.from('empresas').update({ logo: g.data.logo }).eq('id', c.emp);
+        if (u.error) er('Atualizar a empresa (logótipo) falhou: ' + msg(u.error)); else ok('Atualizar a empresa (logótipo) é permitido. Logótipo atual: ' + (g.data.logo ? kb(g.data.logo.length) : 'nenhum') + '.');
+      }
+    } else inf('Esta conta não é administrador: o teste da empresa foi ignorado.');
+    espaco();
+    inf('Fim. Envie uma captura deste ecrã.');
+  } catch (e) { er('Erro inesperado: ' + msg(e)); }
+};
+document.getElementById('b2').onclick = () => document.getElementById('f').click();
+document.getElementById('f').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const c = await base(); if (!c) return;
+    inf('Ficheiro escolhido: ' + f.name + ' (' + (f.type || 'tipo desconhecido') + ', ' + kb(f.size) + ').');
+    const url = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onerror = () => rej(new Error('não foi possível ler o ficheiro'));
+      r.onload = () => {
+        const i = new Image();
+        i.onerror = () => rej(new Error('o navegador não consegue abrir esta imagem (formato não suportado, por exemplo HEIC)'));
+        i.onload = () => {
+          const k = Math.min(1, 300 / Math.max(i.width, i.height)), cv = document.createElement('canvas');
+          cv.width = Math.round(i.width * k); cv.height = Math.round(i.height * k);
+          cv.getContext('2d').drawImage(i, 0, 0, cv.width, cv.height);
+          res(cv.toDataURL('image/jpeg', .7));
+        };
+        i.src = r.result;
+      };
+      r.readAsDataURL(f);
+    });
+    const d = ok('Imagem reduzida para ' + kb(url.length) + '.'); const im = document.createElement('img'); im.src = url; d.appendChild(im);
+    try { localStorage.setItem('diag_img', url); localStorage.removeItem('diag_img'); ok('Guardar no aparelho: ok.'); }
+    catch (x) { er('Guardar no aparelho falhou: ' + msg(x) + '. Sem espaço no navegador.'); }
+    try { ok('Gravar e ler no servidor: ' + await idaEVolta(c.emp, '_diag_img', url)); }
+    catch (x) { er('Servidor: ' + msg(x)); }
+    inf('Fim. Envie uma captura deste ecrã.');
+  } catch (x) { er('A imagem falhou: ' + msg(x)); }
+  e.target.value = '';
+};
+</script>
+</body>
+</html>

@@ -63,15 +63,15 @@
     var s = await sb.auth.getSession();
     var sess = s && s.data && s.data.session;
     if (!sess) return null;
-    var r1 = await sb.from('perfis').select('*').order('num');
-    if (r1.error) throw r1.error;
-    var perfis = r1.data || [];
+    var rs = await Promise.all([sb.from('perfis').select('*').order('num'), sb.from('empresas').select('*')]);
+    if (rs[0].error) throw rs[0].error;
+    if (rs[1].error) throw rs[1].error;
+    var perfis = rs[0].data || [];
     var meP = perfis.filter(function (p) { return p.id === sess.user.id; })[0];
     if (!meP || meP.estado !== 'Ativo') return null;
-    var r2 = await sb.from('empresas').select('*').eq('id', meP.empresa_id).maybeSingle();
-    if (r2.error) throw r2.error;
-    if (!r2.data) return null;
-    var e = r2.data, us = perfis.map(function (p) { return mapUser(p, e); });
+    var e = (rs[1].data || []).filter(function (x) { return x.id === meP.empresa_id; })[0];
+    if (!e) return null;
+    var us = perfis.map(function (p) { return mapUser(p, e); });
     var u = us.filter(function (x) { return x.uuid === sess.user.id; })[0];
     real.setItem(KU, JSON.stringify(us));
     real.setItem(KC, JSON.stringify([mapEmpresa(e, perfis)]));
@@ -180,24 +180,36 @@
     guardarPend();
     agendar(800);
   }
+  /* Só descarrega o que mudou desde a última vez (o resto já está neste aparelho). */
   async function puxarDados(id) {
-    var pre = 'e' + id + ':', remoto = {}, de = 0, passo = 500;
+    var pre = 'e' + id + ':', KSY = 'authvault.sb.sync.' + id, ultimo = real.getItem(KSY) || '', maxTs = ultimo;
+    var meta = {}, de = 0, passo = 1000;
     for (;;) {
-      var r = await sb.from('dados').select('chave,valor').eq('empresa_id', id).order('chave').range(de, de + passo - 1);
+      var r = await sb.from('dados').select('chave,atualizado_em').eq('empresa_id', id).order('chave').range(de, de + passo - 1);
       if (r.error) throw r.error;
-      (r.data || []).forEach(function (x) { remoto[x.chave] = x.valor; });
+      (r.data || []).forEach(function (x) { meta[x.chave] = x.atualizado_em || ''; if ((x.atualizado_em || '') > maxTs) maxTs = x.atualizado_em; });
       if ((r.data || []).length < passo) break;
       de += passo;
     }
-    Object.keys(remoto).forEach(function (k) {
+    var buscar = [];
+    Object.keys(meta).forEach(function (k) {
       if (k in pend) return;                                   /* alteração local ainda por enviar: não apagar */
-      try { if (real.getItem(pre + k) !== remoto[k]) real.setItem(pre + k, remoto[k]); } catch (e) { /* sem espaço */ }
+      if (!ultimo || meta[k] > ultimo || real.getItem(pre + k) === null) buscar.push(k);
     });
+    for (var j = 0; j < buscar.length; j += 5) {
+      var lote = buscar.slice(j, j + 5);
+      var r2 = await sb.from('dados').select('chave,valor').eq('empresa_id', id).in('chave', lote);
+      if (r2.error) throw r2.error;
+      (r2.data || []).forEach(function (x) {
+        try { if (real.getItem(pre + x.chave) !== x.valor) real.setItem(pre + x.chave, x.valor); } catch (e) { /* sem espaço */ }
+      });
+    }
     for (var i = 0; i < real.length; i++) {                     /* o que só existe neste aparelho sobe para o servidor */
       var key = real.key(i);
-      if (key && key.indexOf(pre) === 0) { var k = key.slice(pre.length); if (!(k in remoto)) pend[k] = 1; }
+      if (key && key.indexOf(pre) === 0) { var k = key.slice(pre.length); if (!(k in meta)) pend[k] = 1; }
     }
     guardarPend();
+    if (maxTs) real.setItem(KSY, maxTs);
   }
   function iniciarSync() {
     pararSync(true);
@@ -212,6 +224,12 @@
           try {
             if (p.eventType === 'DELETE') { var k = p.old && p.old.chave; if (k && !(k in pend)) real.removeItem(pre + k); return; }
             var n = p.new; if (!n || n.chave in pend) return;
+            if (typeof n.valor !== 'string') {      /* o Supabase omite valores muito grandes no tempo real: vai buscá-lo */
+              sb.from('dados').select('valor').eq('empresa_id', id).eq('chave', n.chave).maybeSingle().then(function (r) {
+                try { if (r.data && typeof r.data.valor === 'string' && !(n.chave in pend) && real.getItem(pre + n.chave) !== r.data.valor) real.setItem(pre + n.chave, r.data.valor); } catch (e) { /* ignora */ }
+              });
+              return;
+            }
             if (real.getItem(pre + n.chave) !== n.valor) real.setItem(pre + n.chave, n.valor);
           } catch (e) { /* ignora */ }
         }).subscribe();
