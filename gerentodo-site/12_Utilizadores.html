@@ -145,9 +145,24 @@ function render(){
   $('cards').innerHTML=[[all.length,'Utilizadores'],[all.filter(u=>u.role==='Administrador').length,'Administradores'],[all.filter(u=>u.role!=='Administrador').length,'Funcionários'],[all.filter(u=>u.status==='Ativo').length,'Ativos']].map(([a,b])=>`<div class="card"><b>${a}</b><span>${b}</span></div>`).join('');
 }
 
+/* ---------- servidor: criar, editar, ativar/desativar e eliminar utilizadores ---------- */
+async function api(acao,dados){
+  const T=window.top;
+  if(!T||!T.sb)throw new Error('Abra este módulo a partir da sua conta.');
+  const s=await T.sb.auth.getSession(),tk=s.data&&s.data.session&&s.data.session.access_token;
+  if(!tk)throw new Error('A sessão terminou. Entre novamente.');
+  let r;
+  try{r=await fetch('/.netlify/functions/utilizadores',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tk},body:JSON.stringify(Object.assign({acao},dados))})}
+  catch(e){throw new Error('Sem ligação ao servidor. Verifique a internet.')}
+  const j=await r.json().catch(()=>({}));
+  if(r.status===404)throw new Error('O serviço de utilizadores ainda não está publicado no servidor.');
+  if(!r.ok||!j.ok)throw new Error(j.erro||'Não foi possível concluir ('+r.status+').');
+  try{await T.GS.atualizarEquipa()}catch(e){}
+  return j;
+}
+
 /* ---------- criar / editar ---------- */
 function openForm(id){
-  return toast('A gestão de utilizadores está a ser ligada ao servidor. Disponível em breve.');
   load();if(!allowed())return;
   editId=id||null;
   const t=editId?U.find(u=>u.id===editId):null;
@@ -169,49 +184,38 @@ $('fU').onsubmit=async e=>{
   if(name.length<2)return showErr('Introduza o nome completo.');
   if(digits(tel).length<9)return showErr('Introduza o contacto (mínimo 9 dígitos).');
   if(mail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail))return showErr('O e-mail é inválido.');
-  if(mail&&U.some(u=>u.id!==editId&&String(u.email).toLowerCase()===mail.toLowerCase()))return showErr('Já existe uma conta com este e-mail.');
-  if(U.some(u=>u.id!==editId&&digits(u.phone).slice(-9)===digits(tel).slice(-9)))return showErr('Já existe uma conta com este contacto.');
   if(!editId||pw){
     if(!strong(pw))return showErr('Senha fraca: use 10+ caracteres com maiúscula, minúscula, número e símbolo.');
     if(pw!==pw2)return showErr('A confirmação não coincide com a senha.');
   }
+  const bt=$('fU').querySelector('.pri'),tx=bt.textContent;bt.disabled=true;bt.textContent='A guardar…';showErr('');
   try{
-    const role=tp==='a'?'Administrador':'Funcionário';
-    if(t){
-      Object.assign(t,{name,phone:tel,email:mail,role,status:st});
-      if(pw)Object.assign(t,await cred(pw));
-      log(`${me.name} atualizou o utilizador ${t.name}.`);toast('Utilizador atualizado.');
-    }else{
-      const id=Math.max(0,...U.map(u=>u.id))+1;
-      U.push({id,name,email:mail,phone:tel,company:me.company,companyId:me.companyId,role,principal:false,status:'Ativo',isDefault:false,avatar:'',criadoEm:new Date().toISOString(),...await cred(pw)});
-      log(`${me.name} cadastrou ${name} (${role==='Administrador'?'administrador secundário':'funcionário'}).`);toast('Utilizador cadastrado.');
-    }
-    save();closeM('mU');render();
+    if(t){await api('editar',{id:t.uuid,nome:name,telefone:tel,email:mail,tipo:tp,estado:st,senha:pw||undefined});log(`${me.name} atualizou o utilizador ${name}.`);toast('Utilizador atualizado.')}
+    else{await api('criar',{nome:name,telefone:tel,email:mail,tipo:tp,senha:pw});log(`${me.name} cadastrou ${name}.`);toast('Utilizador cadastrado. Já pode entrar com o contacto e a senha definida.')}
+    closeM('mU');render();
   }catch(x){showErr(x.message||'Erro ao guardar.')}
+  finally{bt.disabled=false;bt.textContent=tx}
 };
 
 /* ---------- ativar/desativar e eliminar ---------- */
-function tog(id){
-  return toast('A gestão de utilizadores está a ser ligada ao servidor. Disponível em breve.');
+async function tog(id){
   load();const t=U.find(u=>u.id===id);
   if(!t||!canManage(t))return toast('Sem permissão.');
   if(t.role==='Administrador')return toast('A conta de administrador não pode ser desativada.');
-  t.status=t.status==='Ativo'?'Inativo':'Ativo';save();
-  log(`${me.name} alterou o estado de ${t.name} para ${t.status}.`);render();
+  try{await api('estado',{id:t.uuid,estado:t.status==='Ativo'?'Inativo':'Ativo'});log(`${me.name} alterou o estado de ${t.name}.`);render()}
+  catch(x){toast(x.message)}
 }
 function askDel(id){
-  return toast('A gestão de utilizadores está a ser ligada ao servidor. Disponível em breve.');
   load();const t=U.find(u=>u.id===id);
   if(!t||!canManage(t))return toast('Sem permissão para eliminar este utilizador.');
   delId=id;$('dT').textContent=`Tem a certeza de que pretende eliminar ${t.name}? Esta ação não pode ser desfeita.`;openM('mD');
 }
-$('dOk').onclick=()=>{
+$('dOk').onclick=async()=>{
   load();const t=U.find(u=>u.id===delId);
   closeM('mD');
   if(!t||!canManage(t))return toast('Sem permissão para eliminar este utilizador.');
-  U=U.filter(u=>u.id!==delId);save();
-  try{const h=JSON.parse(localStorage.getItem(KH)||'[]');localStorage.setItem(KH,JSON.stringify(h.filter(x=>x.uid!==delId)))}catch(e){}
-  log(`${me.name} eliminou o utilizador ${t.name}.`);toast('Utilizador eliminado.');render();
+  try{await api('eliminar',{id:t.uuid});log(`${me.name} eliminou o utilizador ${t.name}.`);toast('Utilizador eliminado.');render()}
+  catch(x){toast(x.message)}
 };
 
 function tema(){const d=document.documentElement,t=d.dataset.t==='dark'?'light':'dark';d.dataset.t=t;localStorage.setItem('tema',t)}

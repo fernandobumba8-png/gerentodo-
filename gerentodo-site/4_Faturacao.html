@@ -123,6 +123,9 @@ document.addEventListener('click',()=>document.getElementById('menu').classList.
 <div id="toast"></div>
 
 <script>
+/* funções em falta que causavam o erro "ymd is not defined" e o botão "Guardar em PDF" sem efeito */
+const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const savePDF=(titulo,html)=>openWin(titulo,html);   /* abre a janela de impressão: escolha "Guardar como PDF" */
 let UI=LS.g('fat_ui',{v:true,c:true,p:true,f:true}),ND=null,editIdx=null,RF=[];
 const FATT=['FT','FR','ND'];
 const fat=d=>d.estado==='Anulado'?0:FATT.includes(d.tipo)?d.total:(d.tipo==='NC'&&!d.anulacao?-d.total:0);

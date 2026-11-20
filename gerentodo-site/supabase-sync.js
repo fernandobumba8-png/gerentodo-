@@ -94,6 +94,14 @@
       return { user: u, offline: true };
     }
   }
+  /* Relê só os utilizadores da empresa (depois de criar/editar/eliminar um funcionário) */
+  async function atualizarEquipa() {
+    var e = ler(KC, [])[0];
+    if (!e) return;
+    var r = await sb.from('perfis').select('*').order('num');
+    if (r.error) throw r.error;
+    real.setItem(KU, JSON.stringify((r.data || []).map(function (p) { return mapUser(p, { id: e.id, nome: e.nome }); })));
+  }
   async function confirmarSenha(emailLogin, senha) {
     var r = await sb.auth.signInWithPassword({ email: emailLogin, password: senha });
     if (r.error) { if (rede(r.error)) throw r.error; return false; }
@@ -261,6 +269,6 @@
   window.addEventListener('beforeunload', function () { guardarPend(); });
 
   window.GS = { rede: rede, msg: msg, emailDeLogin: emailDeLogin, entrar: entrar, hidratar: hidratar, confirmarSenha: confirmarSenha,
-    alterarSenha: alterarSenha, salvarPerfil: salvarPerfil, salvarEmpresa: salvarEmpresa, escolherPacote: escolherPacote,
+    alterarSenha: alterarSenha, salvarPerfil: salvarPerfil, salvarEmpresa: salvarEmpresa, escolherPacote: escolherPacote, atualizarEquipa: atualizarEquipa,
     sair: sair, flush: flush, pendentes: function () { return Object.keys(pend).length; } };
 })();
