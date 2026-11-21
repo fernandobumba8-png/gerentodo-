@@ -95,7 +95,7 @@
   <h2 id="fTitle">Cadastrar produto</h2>
   <label>Nome *</label><input id="n"><div class="hint" id="nH"></div>
   <div class="g2"><div><label>Categoria *</label><input id="c" placeholder="Pesquisar categoria"></div><div><label>Subcategoria *</label><input id="sc" placeholder="Pesquisar subcategoria"></div></div>
-  <div class="g2"><div><label>Código de barras</label><input id="cb"></div><div><label>Código de lote</label><input id="lt"></div></div>
+  <div class="g2"><div><label>Código de barras</label><div class="row"><input id="cb" style="flex:1;min-width:0"><button type="button" class="btn" onclick="abrirLeitor()">📷 Ler</button></div></div><div><label>Código de lote</label><input id="lt"></div></div>
   <div class="g2"><div><label>Data de validade</label><input id="vd" type="date"></div><div><label>Fornecedor *</label><input id="f" placeholder="Pesquisar fornecedor"></div></div>
   <div class="g2"><div><label>Corredor</label><input id="co"></div><div><label>Prateleira</label><input id="pr"></div></div>
   <label>Imagem</label><input id="im" type="file" accept="image/*" onchange="loadImg(this)"><img id="imp" style="max-width:90px;margin-top:6px;border-radius:8px;display:none" alt="">
@@ -136,6 +136,12 @@
   <p class="hint">Abre a janela de impressão: escolha “Guardar como PDF” como destino.</p>
 </div></div>
 <div class="ov" id="mInfo"><div class="md" id="info"></div></div>
+
+<div class="ov" id="leitorCam"><div class="md" style="max-width:520px">
+<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Ler código de barras</h2><button class="btn" onclick="fecharLeitor()">Fechar</button></div>
+<video id="videoLeitor" playsinline muted style="width:100%;max-height:55vh;background:#111;border-radius:10px;margin-top:12px"></video>
+<p class="hint" id="estadoLeitor">A preparar a câmara…</p></div></div>
+<script src="https://unpkg.com/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
 <div id="toast"></div>
 <script>
 const $=id=>document.getElementById(id);
@@ -505,7 +511,28 @@ function kPdf(){
 }
 window.addEventListener('storage',e=>{if(e.key===DK&&vista_==='c')kRender()});
 
-subState();render();
+
+let leitorCodigo=null, leitorStream=null;
+async function abrirLeitor(){
+ $('leitorCam').classList.add('on');$('estadoLeitor').textContent='A solicitar acesso à câmara…';
+ try{
+  if(!navigator.mediaDevices?.getUserMedia)throw new Error('A câmara exige HTTPS ou localhost.');
+  leitorStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+  $('videoLeitor').srcObject=leitorStream;await $('videoLeitor').play();
+  if(!window.ZXingBrowser)throw new Error('Não foi possível carregar o leitor. Verifique a ligação à internet.');
+  leitorCodigo=new ZXingBrowser.BrowserMultiFormatReader();
+  leitorCodigo.decodeFromVideoElement($('videoLeitor'),(result,err)=>{
+   if(result){const codigo=result.getText();fecharLeitor();$('cb').value=codigo;toast('Código lido: '+codigo)}
+  });
+  $('estadoLeitor').textContent='Aponte a câmara para o código de barras.';
+ }catch(e){$('estadoLeitor').textContent=e.message||'Não foi possível abrir a câmara.';if(leitorStream){leitorStream.getTracks().forEach(t=>t.stop());leitorStream=null}}
+}
+function fecharLeitor(){
+ try{if(leitorCodigo)leitorCodigo.reset()}catch(e){}
+ leitorCodigo=null;if(leitorStream){leitorStream.getTracks().forEach(t=>t.stop());leitorStream=null}
+ const v=$('videoLeitor');if(v)v.srcObject=null;$('leitorCam').classList.remove('on');
+}
+\nsubState();render();
 const low=S.p.filter(p=>['Stock baixo','Esgotado'].includes(estado(p))||validade(p)).length;
 if(low)setTimeout(()=>toast(low+' produto(s) com stock baixo, esgotados ou com validade a terminar.'),400);
 </script>

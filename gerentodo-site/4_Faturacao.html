@@ -99,7 +99,7 @@ document.addEventListener('click',()=>document.getElementById('menu').classList.
 </div></div>
 
 <div class="ov" id="mP"><div class="md">
-  <h2>Adicionar produto</h2><input id="ps" placeholder="Pesquisar produto (nome, código)" oninput="prodSearch()"><input type="hidden" id="pl"><div id="pr" class="pr hide"></div><div class="hint" id="pI"></div>
+  <h2>Adicionar produto</h2><div class="row"><input id="ps" style="flex:1;min-width:0" placeholder="Pesquisar produto (nome, código)" oninput="prodSearch()"><button type="button" class="btn" onclick="abrirLeitorFat('linha')">📷 Ler</button></div><input type="hidden" id="pl"><div id="pr" class="pr hide"></div><div class="hint" id="pI"></div>
   <div class="g3"><div><label>Quantidade</label><input id="pq" type="number" min="1" value="1"></div><div><label>Preço (Kz)</label><input id="pp" type="number" min="0" step="0.01"></div><div><label>Desconto</label><div class="row" style="flex-wrap:nowrap"><input id="pdv" type="number" min="0" step="0.01"><select id="pdt" style="width:70px"><option>%</option><option>Kz</option></select></div></div></div>
   <div class="g2"><div><label>IVA deste produto (%)</label><input id="piv" type="number" min="0" step="0.01"></div><span></span></div>
   <div class="acts"><button class="btn" onclick="$('mP').classList.remove('on')">Cancelar</button><button class="btn p" onclick="addProd()">Adicionar</button></div>
@@ -112,7 +112,7 @@ document.addEventListener('click',()=>document.getElementById('menu').classList.
   <div class="qs-b">
     <label for="qsCli">Nome do cliente</label><input id="qsCli" placeholder="Cliente final" autocomplete="off">
     <label for="qsBusca">Produto (só produtos com preço)</label>
-    <input id="qsBusca" placeholder="Digite para pesquisar…" oninput="qsBuscar()" autocomplete="off">
+    <div class="row"><input id="qsBusca" style="flex:1;min-width:0" placeholder="Digite para pesquisar…" oninput="qsBuscar()" autocomplete="off"><button type="button" class="btn" onclick="abrirLeitorFat('rapida')">📷 Ler</button></div>
     <div id="qsRes" class="pr hide"></div>
     <div id="qsLin" style="margin-top:10px"></div>
     <label for="qsFp" style="margin-top:12px">Forma de pagamento</label><select id="qsFp"></select>
@@ -120,12 +120,15 @@ document.addEventListener('click',()=>document.getElementById('menu').classList.
   <div class="qs-f"><button type="button" class="btn" onclick="qsLimpar()">Cancelar</button><button type="button" class="btn p" onclick="qsFinalizar()">Finalizar</button></div>
 </aside>
 
+
+<div class="ov" id="leitorCam"><div class="md" style="max-width:520px">
+<div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">Ler código de barras</h2><button class="btn" onclick="fecharLeitor()">Fechar</button></div>
+<video id="videoLeitor" playsinline muted style="width:100%;max-height:55vh;background:#111;border-radius:10px;margin-top:12px"></video>
+<p class="hint" id="estadoLeitor">A preparar a câmara…</p></div></div>
+<script src="https://unpkg.com/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
 <div id="toast"></div>
 
 <script>
-/* funções em falta que causavam o erro "ymd is not defined" e o botão "Guardar em PDF" sem efeito */
-const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-const savePDF=(titulo,html)=>openWin(titulo,html);   /* abre a janela de impressão: escolha "Guardar como PDF" */
 let UI=LS.g('fat_ui',{v:true,c:true,p:true,f:true}),ND=null,editIdx=null,RF=[];
 const FATT=['FT','FR','ND'];
 const fat=d=>d.estado==='Anulado'?0:FATT.includes(d.tipo)?d.total:(d.tipo==='NC'&&!d.anulacao?-d.total:0);
@@ -379,7 +382,33 @@ function saveDef(){
 }
 
 /* entradas vindas de outros ficheiros */
-function boot(){
+
+let leitorFat=null,streamFat=null,modoLeitorFat='';
+async function abrirLeitorFat(modo){
+ modoLeitorFat=modo;$('leitorCam').classList.add('on');$('estadoLeitor').textContent='A solicitar acesso à câmara…';
+ try{
+  if(!navigator.mediaDevices?.getUserMedia)throw new Error('A câmara exige HTTPS ou localhost.');
+  streamFat=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+  $('videoLeitor').srcObject=streamFat;await $('videoLeitor').play();
+  if(!window.ZXingBrowser)throw new Error('Não foi possível carregar o leitor. Verifique a ligação à internet.');
+  leitorFat=new ZXingBrowser.BrowserMultiFormatReader();
+  leitorFat.decodeFromVideoElement($('videoLeitor'),(result,err)=>{
+   if(!result)return;
+   const codigo=result.getText();fecharLeitorFat();
+   const p=P().p.find(x=>String(x.cb||'').trim()===codigo);
+   if(!p){toast('Nenhum produto encontrado com o código: '+codigo);return}
+   if(modoLeitorFat==='rapida'){qsAdd(p.id);$('qsBusca').value='';$('qsRes').classList.add('hide')}
+   else{$('pl').value=p.id;$('ps').value=p.n;prodPick();$('pr').classList.add('hide');toast('Produto encontrado: '+p.n)}
+  });
+  $('estadoLeitor').textContent='Aponte a câmara para o código de barras.';
+ }catch(e){$('estadoLeitor').textContent=e.message||'Não foi possível abrir a câmara.';if(streamFat){streamFat.getTracks().forEach(t=>t.stop());streamFat=null}}
+}
+function fecharLeitorFat(){
+ try{if(leitorFat)leitorFat.reset()}catch(e){}
+ leitorFat=null;if(streamFat){streamFat.getTracks().forEach(t=>t.stop());streamFat=null}
+ const v=$('videoLeitor');if(v)v.srcObject=null;$('leitorCam').classList.remove('on');
+}
+\nfunction boot(){
   render();
   const take=k=>{const v=LS.g(k,null);if(v)localStorage.removeItem(k);return v};
   const pc=take('faturacao_cliente_pendente'),vp=take('vitrine_fatura_pendente'),pe=take('faturacao_pendente');
