@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="pt-AO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Produtos, stock e categorias</title>
+<link rel="stylesheet" href="estilo.css">
+<script src="filtros.js" defer></script>
+<script src="preferencias.js"></script>
+<script src="modais.js"></script>
+<script src="escopo.js"></script>
+<style>
+ /* Botão Menu flutuante no canto superior direito */
+ .menuw.fab{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));right:14px;z-index:40}
+ .fab>.btn{border-radius:999px;padding:10px 18px;box-shadow:0 6px 18px rgba(0,0,0,.28)}
+ main{padding-top:64px}
+ main[hidden]{display:none}
+</style>
+</head>
+<body class="pg-produtos">
+<div class="menuw fab">
+    <button class="btn p" onclick="toggleMenu(event)" aria-haspopup="true">☰</button>
+    <div class="menu" id="menu">
+      <button onclick="mn(()=>vista('p'))">Lista de produtos</button>
+      <button onclick="mn(()=>vista('c'))">Lista de categorias</button>
+      <hr>
+      <button onclick="mn(()=>openForm())">Cadastrar produto</button>
+      <button onclick="mn(()=>openMov('s'))">Gerir saída</button>
+      <button onclick="mn(()=>openMov('e'))">Gerir entrada</button>
+      <button onclick="mn(()=>openRel())">Gerir relatório</button>
+      <hr>
+      <button onclick="mn(()=>exportCSV())">Exportar CSV</button>
+      <hr>
+      <button onclick="mn(()=>openCat())">Cadastrar categoria</button>
+      <button onclick="mn(()=>openSub())">Cadastrar subcategoria</button>
+      <button onclick="mn(()=>kSync())">Importar categorias dos produtos</button>
+      <button onclick="mn(()=>kExportCSV())">Exportar categorias (CSV)</button>
+      <button onclick="mn(()=>kPdf())">PDF de categorias</button>
+    </div>
+</div>
+<main id="vProd">
+  <div class="filters">
+    <input id="fq" placeholder="Pesquisar nome, código, lote, preço, local" oninput="render()">
+    <select id="fc" onchange="render()"></select><select id="fsc" onchange="render()"></select><select id="ff" onchange="render()"></select>
+    <input id="fmin" type="number" min="0" placeholder="Preço mínimo" oninput="render()"><input id="fmax" type="number" min="0" placeholder="Preço máximo" oninput="render()">
+    <select id="fpr" onchange="render()"><option value="">Preço: todos os produtos</option><option value="c">Com preço</option><option value="s">Sem preço</option></select>
+    <select id="fe" onchange="render()"><option value="">Estado do produto</option><option>Ativo</option><option>Inativo</option><option>Esgotado</option><option>Stock baixo</option></select>
+    <select id="fv" onchange="render()"><option value="">Estado na vitrine</option><option value="1">Publicado</option><option value="0">Não publicado</option></select>
+    <select id="fvd" onchange="render()"><option value="">Validade</option><option value="x">Expirados</option><option value="p">A expirar (30 dias)</option></select>
+    <button class="btn" onclick="clearF()">Limpar filtros</button>
+  </div>
+  <section class="cards" id="cards"></section>
+  <div class="bar">
+    <span class="hint" id="count"></span>
+    <span class="row" style="display:flex;gap:8px;flex-wrap:wrap">
+      <select id="so" onchange="render()"><option value="mov">Movimentação recente</option><option value="n">Nome (A-Z)</option><option value="pa">Preço (menor)</option><option value="pd">Preço (maior)</option><option value="qa">Stock (menor)</option><option value="qd">Stock (maior)</option><option value="id">ID</option></select>
+      <button class="btn" id="btnAll" onclick="showAll=!showAll;render()"></button>
+    </span>
+  </div>
+  <div id="list"></div>
+</main>
+
+<main id="vCat" hidden>
+  <div class="filters">
+    <input id="kfq" placeholder="Pesquisar categoria ou subcategoria" oninput="kRender()">
+    <select id="kfe" onchange="kRender()"><option value="">Estado</option><option>Ativo</option><option>Inativo</option></select>
+    <label class="row" style="margin:0;color:var(--tx);flex-wrap:nowrap;align-items:center"><input type="checkbox" id="kfz" style="width:auto" onchange="kRender()">&nbsp;Só sem produtos</label>
+    <button class="btn" onclick="['kfq','kfe'].forEach(i=>$(i).value='');$('kfz').checked=false;kRender()">Limpar filtros</button>
+  </div>
+  <section class="cards" id="kcards"></section>
+  <p class="hint" id="kcount"></p>
+  <div class="tw"><table><thead><tr><th>ID</th><th>Categoria</th><th>Descrição</th><th>Subcategorias</th><th>Produtos</th><th>Estado</th><th></th></tr></thead><tbody id="ktb"></tbody></table></div>
+  <p class="hint">Estes dados são partilhados com o Departamentos: o cadastro de produto sugere as categorias e subcategorias ativas daqui.</p>
+</main>
+
+<div class="ov sb" id="mKC"><div class="md">
+  <h2 id="kcT">Cadastrar categoria</h2>
+  <label>Nome da categoria *</label><input id="kcn"><div class="hint" id="kcH"></div>
+  <label>Descrição</label><textarea id="kcd" rows="2"></textarea>
+  <div class="g2"><div><label>Cor</label><input id="kcc" type="color" value="#0f6b57"></div><div><label>Estado</label><select id="kce"><option>Ativo</option><option>Inativo</option></select></div></div>
+  <div class="acts"><button class="btn" onclick="cancelCat()">Cancelar</button><button class="btn p" onclick="saveCat()">Salvar</button></div>
+</div></div>
+
+<div class="ov" id="mKS"><div class="md">
+  <h2 id="ksT">Cadastrar subcategoria</h2>
+  <label>Categoria *</label><select id="ksc"></select>
+  <label>Nome da subcategoria *</label><input id="ksn"><div class="hint" id="ksH"></div>
+  <label>Estado</label><select id="kse"><option>Ativo</option><option>Inativo</option></select>
+  <div class="acts"><button class="btn" onclick="cancelSub()">Cancelar</button><button class="btn p" onclick="saveSub()">Salvar</button></div>
+</div></div>
+<div class="ov" id="mKI"><div class="md" id="kinfo"></div></div>
+
+<div class="ov sb" id="mForm"><div class="md">
+  <button class="x" onclick="cancelForm()" aria-label="Fechar">×</button>
+  <h2 id="fTitle">Cadastrar produto</h2>
+  <label>Nome *</label><input id="n"><div class="hint" id="nH"></div>
+  <div class="g2"><div><label>Categoria *</label><input id="c" placeholder="Pesquisar categoria"></div><div><label>Subcategoria *</label><input id="sc" placeholder="Pesquisar subcategoria"></div></div>
+  <div class="g2"><div><label>Código de barras</label><input id="cb"></div><div><label>Código de lote</label><input id="lt"></div></div>
+  <div class="g2"><div><label>Data de validade</label><input id="vd" type="date"></div><div><label>Fornecedor *</label><input id="f" placeholder="Pesquisar fornecedor"></div></div>
+  <div class="g2"><div><label>Corredor</label><input id="co"></div><div><label>Prateleira</label><input id="pr"></div></div>
+  <label>Imagem</label><input id="im" type="file" accept="image/*" onchange="loadImg(this)"><img id="imp" style="max-width:90px;margin-top:6px;border-radius:8px;display:none" alt="">
+  <div class="g2"><div><label>Unidade de medida</label><select id="um"><option>Un</option><option>Kg</option><option>Litro</option><option>Caixa</option><option>Pacote</option></select></div><div><label>Quantidade *</label><input id="q" type="number" min="0"></div></div>
+  <div class="g2"><div><label>Stock mínimo</label><input id="sm" type="number" min="0"></div><div><label>Custo (Kz) *</label><input id="cu" type="number" min="0" step="0.01" oninput="calc()"></div></div>
+  <div class="g2"><div><label>Preço de venda (Kz)</label><input id="pv" type="number" min="0" step="0.01" oninput="calc()"></div><div><label>Desconto</label><div style="display:flex;gap:6px"><input id="ds" type="number" min="0" step="0.01" oninput="calc()"><select id="dt" style="width:80px" onchange="calc()"><option>%</option><option>Kz</option></select></div></div></div>
+  <div class="hint" id="calcH"></div>
+  <div class="acts"><button class="btn" onclick="cancelForm()">Cancelar</button><button class="btn p" onclick="saveForm()">Salvar</button></div>
+</div></div>
+
+<div class="ov" id="mMov"><div class="md">
+  <button class="x" onclick="closeM('mMov')" aria-label="Fechar">×</button>
+  <h2 id="mvT"></h2>
+  <div><label>Produto</label><input id="mvQ" placeholder="Digite para pesquisar o produto"></div>
+  <div class="hint" id="mvS"></div>
+  <label>Quantidade</label><input id="mvN" type="number" min="1">
+  <div id="mvSaida">
+    <div><label>Destino (departamento)</label><input id="mvD" placeholder="Pesquisar departamento"></div><label>Motivo</label><input id="mvM"><label>Solicitante</label><input id="mvR">
+  </div>
+  <div id="mvEnt">
+    <div class="g2"><div><label>Fornecedor</label><input id="mvF" placeholder="Pesquisar fornecedor"></div><div><label>Lote</label><input id="mvL"></div></div>
+    <div class="g2"><div><label>Nota/guia de entrada</label><input id="mvG"></div><div><label>Novo custo (Kz)</label><input id="mvC" type="number" min="0" step="0.01"></div></div>
+  </div>
+  <div class="acts"><button class="btn" onclick="closeM('mMov')">Cancelar</button><button class="btn p" onclick="doMov()">Confirmar</button></div>
+</div></div>
+
+<div class="ov" id="mRel"><div class="md">
+  <button class="x" onclick="closeM('mRel')" aria-label="Fechar">×</button>
+  <h2>Gerir relatório</h2>
+  <label>Pesquisa (nome, localização)</label><input id="rq">
+  <div class="g2"><div><label>Categoria</label><select id="rc"></select></div><div><label>Subcategoria</label><select id="rsc"></select></div></div>
+  <div class="g2"><div><label>Fornecedor</label><select id="rf"></select></div><div><label>Estado</label><select id="re"><option value="">Todos</option><option>Ativo</option><option>Inativo</option><option>Esgotado</option><option>Stock baixo</option></select></div></div>
+  <div class="g2"><div><label>Valor mínimo (Kz)</label><input id="rmin" type="number" min="0"></div><div><label>Valor máximo (Kz)</label><input id="rmax" type="number" min="0"></div></div>
+  <label>Produtos</label><select id="rpr"><option value="">Todos (com e sem preço)</option><option value="c">Só com preço</option><option value="s">Só sem preço</option></select>
+  <div class="g2"><div><label>Data inicial (cadastro)</label><input id="rd1" type="date"></div><div><label>Data final (cadastro)</label><input id="rd2" type="date"></div></div>
+  <p class="hint" id="rN"></p>
+  <div class="acts"><button class="btn d" onclick="descartarRel()">Descartar</button><button class="btn" onclick="outroFiltro()">Outro filtro</button><button class="btn p" onclick="finalizarRel()">Finalizar (PDF)</button></div>
+  <p class="hint">Abre a janela de impressão: escolha “Guardar como PDF” como destino.</p>
+</div></div>
+<div class="ov" id="mInfo"><div class="md" id="info"></div></div>
+<div id="toast"></div>
+<script>
+const $=id=>document.getElementById(id);
+const KEY='produtos_v2';
+const loadS=()=>JSON.parse(localStorage.getItem(KEY)||'{"p":[],"h":[]}');
+let S=loadS(),editId=null,imgData='',mvMode='s',mvSel=null,showAll=false,RF=[];
+const save=()=>localStorage.setItem(KEY,JSON.stringify(S));
+const kz=v=>(Number(v)||0).toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2}).replace(/\u00a0/g,'.')+' Kz';
+const norm=s=>(s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const esc=s=>(s||'').toString().replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtD=d=>d?d.split('-').reverse().join('/'):'';
+const nowS=()=>new Date().toLocaleString('pt-PT');
+const openM=id=>$(id).classList.add('on'),closeM=id=>$(id).classList.remove('on');
+function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',2800)}
+function final(p){const pv=+p.pv||0,d=+p.ds||0;return Math.max(0,p.dt==='Kz'?pv-d:pv-pv*d/100)}
+function estado(p){if(p.ativo===false)return'Inativo';if(+p.q<=0)return'Esgotado';if(+p.q<=(+p.sm||0))return'Stock baixo';return'Ativo'}
+function ref(){const d=new Date();return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+Math.floor(1000+Math.random()*9000)}
+function hist(p,tipo,qtd,extra){S.h.push({pid:p.id,tipo,qtd,data:nowS(),ts:Date.now(),us:((window.__who&&__who())||{}).name||'',...extra})}
+const nextId=()=>S.p.reduce((m,p)=>Math.max(m,p.id),0)+1;
+const info=h=>{$('info').innerHTML=h;openM('mInfo')};
+const ymd=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const today=()=>ymd(new Date());
+const in30=()=>{const d=new Date();d.setDate(d.getDate()+30);return ymd(d)};
+const validade=p=>!p.vd?'':p.vd<today()?'x':p.vd<=in30()?'p':'';
+
+/* ---------- menu ---------- */
+function toggleMenu(e){e.stopPropagation();$('menu').classList.toggle('on')}
+function mn(fn){$('menu').classList.remove('on');setTimeout(fn,0)}
+document.addEventListener('click',()=>$('menu').classList.remove('on'));
+
+/* ---------- campos de pesquisa: só se escolhe o que já está cadastrado ---------- */
+const val=id=>$(id).dataset.v||'';
+function setPk(id,v,l){const e=$(id);e.value=l??v??'';e.dataset.v=v??''}
+function clearPk(id){setPk(id,'','')}
+function pk(id,src,o={}){
+  const inp=$(id),dd=document.createElement('div');dd.className='dd';inp.parentNode.classList.add('pk');inp.parentNode.appendChild(dd);inp.autocomplete='off';
+  const show=()=>{
+    const q=norm(inp.value);if(o.typing&&!q){dd.style.display='none';return}
+    const it=src().filter(x=>!q||norm(x.l+' '+(x.k||'')).includes(q)).slice(0,25);dd._it=it;
+    dd.innerHTML=it.map((x,i)=>`<div class="op" data-i="${i}">${esc(x.l)}${x.s?` <span class="hint">${esc(x.s)}</span>`:''}</div>`).join('')||`<div class="op mu">${esc(o.empty||'Nada encontrado')}</div>`;
+    dd.style.display='block';
+  };
+  dd.addEventListener('mousedown',e=>e.preventDefault());
+  dd.addEventListener('click',e=>{const op=e.target.closest('.op');if(!op||op.dataset.i===undefined)return;const x=dd._it[+op.dataset.i];inp.value=x.l;inp.dataset.v=x.v;dd.style.display='none';inp.classList.remove('err');o.onPick&&o.onPick(x)});
+  inp.addEventListener('input',()=>{if(inp.dataset.v){inp.dataset.v='';o.onClear&&o.onClear()}show()});
+  inp.addEventListener('focus',show);
+  inp.addEventListener('blur',()=>setTimeout(()=>{dd.style.display='none';if(!inp.dataset.v)inp.value=''},200));
+}
+const DDg=()=>({d:[],c:[],sc:[],...JSON.parse(localStorage.getItem('departamentos_v1')||'{}')});
+const FOg=()=>({f:[],...JSON.parse(localStorage.getItem('fornecedores_v1')||'{}')});
+const srt=a=>a.sort((x,y)=>norm(x.l).localeCompare(norm(y.l),'pt'));
+const catSrc=()=>srt(DDg().c.filter(c=>c.ativo!==false).map(c=>({v:c.n,l:c.n})));
+const subSrc=()=>{const D=DDg(),c=D.c.find(x=>x.n===val('c'));return c?srt(D.sc.filter(s=>s.cid===c.id&&s.ativo!==false).map(s=>({v:s.n,l:s.n}))):[]};
+const forSrc=()=>srt(FOg().f.filter(f=>f.ativo!==false).map(f=>({v:f.n,l:f.n})));
+const depSrc=()=>srt(DDg().d.filter(d=>d.ativo!==false).map(d=>({v:d.n,l:d.n})));
+const prodSrc=()=>S.p.filter(p=>p.ativo!==false).map(p=>({v:p.id,l:p.n,s:`· stock ${p.q} ${p.um}`,k:(p.cb||'')+' '+p.ref}));
+function subState(){$('sc').disabled=!val('c');$('sc').placeholder=val('c')?'Pesquisar subcategoria':'Escolha primeiro a categoria'}
+pk('c',catSrc,{empty:'Nenhuma categoria cadastrada. Use Menu › Cadastrar categoria',onPick:()=>{clearPk('sc');subState()},onClear:()=>{clearPk('sc');subState()}});
+pk('sc',subSrc,{empty:'Sem subcategorias nesta categoria'});
+pk('f',forSrc,{empty:'Nenhum fornecedor cadastrado. Use Fornecedores.html'});
+pk('mvQ',prodSrc,{typing:true,onPick:x=>{mvSel=+x.v;mvInfo()},onClear:()=>{mvSel=null;$('mvS').textContent=''}});
+pk('mvD',depSrc,{empty:'Nenhum departamento cadastrado. Use Departamentos.html'});
+pk('mvF',forSrc,{empty:'Nenhum fornecedor cadastrado. Use Fornecedores.html'});
+
+/* ---------- lista, filtros e cartões ---------- */
+const FIDS=['fq','fc','fsc','ff','fmin','fmax','fpr','fe','fv','fvd'];
+function clearF(){FIDS.forEach(i=>$(i).value='');render()}
+function filtered(){
+  const q=norm($('fq').value),c=$('fc').value,sc=$('fsc').value,f=$('ff').value,mn=$('fmin').value,mx=$('fmax').value,pr=$('fpr').value,e=$('fe').value,v=$('fv').value,vd=$('fvd').value;
+  return S.p.filter(p=>{
+    const hay=norm([p.n,p.cb,p.lt,p.pv,p.co,p.pr].join(' '));
+    return(!q||hay.includes(q))&&(!c||p.c===c)&&(!sc||p.sc===sc)&&(!f||p.f===f)&&(mn===''||+p.pv>=+mn)&&(mx===''||+p.pv<=+mx)&&(!pr||(pr==='c')===(+p.pv>0))&&(!e||estado(p)===e)&&(v===''||(v==='1')===!!p.pub)&&(!vd||validade(p)===vd);
+  });
+}
+function lists(){
+  const u=k=>[...new Set(S.p.map(p=>p[k]).filter(Boolean))].sort();
+  const fill=(id,arr,first)=>{const e=$(id),v=e.value;e.innerHTML=`<option value="">${first}</option>`+arr.map(a=>`<option>${esc(a)}</option>`).join('');e.value=v};
+  fill('fc',u('c'),'Categoria');fill('fsc',u('sc'),'Subcategoria');fill('ff',u('f'),'Fornecedor');
+}
+function render(){
+  lists();
+  const fl=filtered(),filtering=FIDS.some(i=>$(i).value),lm={};
+  S.h.forEach(h=>{lm[h.pid]=Math.max(lm[h.pid]||0,h.ts||0)});
+  const so=$('so').value,cmp={mov:(a,b)=>(lm[b.id]||0)-(lm[a.id]||0),n:(a,b)=>norm(a.n).localeCompare(norm(b.n),'pt'),pa:(a,b)=>final(a)-final(b),pd:(a,b)=>final(b)-final(a),qa:(a,b)=>a.q-b.q,qd:(a,b)=>b.q-a.q,id:(a,b)=>a.id-b.id}[so];
+  const r=fl.slice().sort(cmp),lim=!showAll&&!filtering,vis=lim?r.slice(0,15):r;
+  $('btnAll').textContent=showAll?'Mostrar só os 15 mais recentes':'Mostrar todos os produtos';
+  $('count').textContent=lim&&r.length>15?`A mostrar os 15 mais recentes de ${r.length} produtos`:`${vis.length} de ${S.p.length} produtos`;
+  $('list').innerHTML=vis.map(p=>{
+    const st=estado(p),cl=st==='Esgotado'?'rd':st==='Stock baixo'?'or':'',vd=validade(p);
+    return`<div class="it"><div class="l1">${p.im?`<img src="${p.im}" alt="">`:'<span class="ph"></span>'}<b>${esc(p.n)}</b><span class="pr">${kz(final(p))}</span><button class="btn s" onclick="acao(${p.id})">Ação</button></div>
+    <div class="l2"><span>ID <i>${p.id}</i></span><span>Ref. <i>${p.ref}</i></span><span>${esc(p.c)} › ${esc(p.sc)}</span><span>Stock anterior <i>${p.qa??'-'}</i></span><span class="${cl}">Stock atual <i class="${cl}">${p.q} ${esc(p.um)}</i></span><span class="tg ${st==='Esgotado'?'r':st==='Stock baixo'?'o':''}">${st}</span><span class="tg ${p.pub?'':'o'}">${p.pub?'Publicado':'Não publicado'}</span>${vd?`<span class="tg ${vd==='x'?'r':'o'}">${vd==='x'?'Expirado':'Expira '+fmtD(p.vd)}</span>`:''}</div></div>`}).join('')||'<p class="hint" style="padding:20px;text-align:center">Nenhum produto encontrado. Use o Menu › Cadastrar produto para começar.</p>';
+  const sum=a=>({n:a.length,cu:a.reduce((s,p)=>s+p.q*p.cu,0),vn:a.reduce((s,p)=>s+p.q*final(p),0),bx:a.filter(p=>estado(p)==='Stock baixo').length,es:a.filter(p=>estado(p)==='Esgotado').length,ex:a.filter(p=>validade(p)==='x').length,pe:a.filter(p=>validade(p)==='p').length});
+  const A=sum(S.p),B=sum(fl),sub=(a,b)=>filtering?`<small>${b} no total</small>`:'';
+  const card=(v,l,t)=>`<div class="card"><b>${v}</b><span>${l}</span>${filtering?`<small>${t} no total</small>`:''}</div>`;
+  $('cards').innerHTML=card(B.n,'Total de produtos',A.n)+card(kz(B.cu),'Stock a preço de custo',kz(A.cu))+card(kz(B.vn),'Stock a preço de venda',kz(A.vn))+card(B.bx,'Stock baixo',A.bx)+card(B.es,'Esgotados',A.es)
+    +`<div class="card"><b>${B.ex+B.pe}</b><span>Com validade crítica</span><small>${B.ex} expirados · ${B.pe} a expirar (30 dias)</small>${filtering?`<small>${A.ex+A.pe} no total</small>`:''}</div>`;
+}
+window.addEventListener('storage',e=>{if(e.key===KEY){S=loadS();render()}});
+
+/* ---------- cadastro ---------- */
+const dirty=()=>['n','cb','lt','co','pr','q','cu','pv'].some(i=>$(i).value)||val('c')||val('f');
+function openForm(p){
+  editId=p?p.id:null;imgData=p?.im||'';$('fTitle').textContent=p?'Editar produto':'Cadastrar produto';
+  ['n','cb','lt','vd','co','pr','q','sm','cu','pv','ds'].forEach(k=>$(k).value=p?(p[k]??''):'');
+  $('um').value=p?p.um:'Un';$('dt').value=p?p.dt||'%':'%';
+  setPk('c',p?p.c:'');setPk('sc',p?p.sc:'');setPk('f',p?p.f:'');subState();
+  $('imp').src=imgData;$('imp').style.display=imgData?'block':'none';$('nH').textContent='';
+  document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));
+  calc();openM('mForm');$('n').focus();
+}
+function cancelForm(){if(dirty()&&!confirm('Há dados preenchidos. Descartar e fechar?'))return;closeM('mForm')}
+function calc(){
+  const cu=+$('cu').value||0,pv=+$('pv').value||0;
+  if(!pv){$('calcH').textContent='';return}
+  const fp=final({pv,ds:$('ds').value,dt:$('dt').value}),l=fp-cu;
+  $('calcH').textContent=`Preço final: ${kz(fp)} · Margem: ${kz(l)} (${cu?(l/cu*100).toFixed(1):'—'}% sobre o custo)`;
+}
+$('n').addEventListener('input',()=>{const d=S.p.find(p=>norm(p.n)===norm($('n').value)&&p.id!==editId);$('nH').textContent=d?'Já existe um produto com este nome.':''});
+function loadImg(inp){
+  const f=inp.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{const i=new Image();i.onload=()=>{const k=Math.min(1,300/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*k;c.height=i.height*k;c.getContext('2d').drawImage(i,0,0,c.width,c.height);imgData=c.toDataURL('image/jpeg',.7);$('imp').src=imgData;$('imp').style.display='block'};i.src=r.result};r.readAsDataURL(f);
+}
+function saveForm(){
+  document.querySelectorAll('.err').forEach(e=>e.classList.remove('err'));
+  const bad=['n','q','cu'].filter(i=>!$(i).value.trim());
+  ['c','sc','f'].forEach(i=>{if(!val(i))bad.push(i)});
+  if(+$('q').value<0)bad.push('q');
+  const cb=$('cb').value.trim();let msg='Preencha os campos destacados. Categoria, subcategoria e fornecedor escolhem-se da lista.';
+  if(cb&&S.p.some(p=>p.cb===cb&&p.id!==editId)){bad.push('cb');msg='Este código de barras já existe.'}
+  if(bad.length){bad.forEach(i=>$(i).classList.add('err'));return toast(msg)}
+  const d={n:$('n').value.trim(),c:val('c'),sc:val('sc'),cb,lt:$('lt').value,vd:$('vd').value,f:val('f'),co:$('co').value,pr:$('pr').value,um:$('um').value,q:+$('q').value,sm:+$('sm').value||0,cu:+$('cu').value,pv:+$('pv').value||0,ds:+$('ds').value||0,dt:$('dt').value,im:imgData};
+  if(editId){const p=S.p.find(x=>x.id===editId);Object.assign(p,d);hist(p,'Edição',0,{motivo:'Dados alterados'});toast('Produto atualizado.')}
+  else{const p={id:nextId(),ref:ref(),ativo:true,pub:false,qa:0,...d};S.p.push(p);hist(p,'Cadastro inicial',p.q,{motivo:'Cadastro'});toast('Produto guardado com sucesso')}
+  save();closeM('mForm');render();
+}
+
+/* ---------- entrada e saída ---------- */
+function mvInfo(){const p=S.p.find(x=>x.id===mvSel);$('mvS').textContent=p?`Stock disponível: ${p.q} ${p.um}`:''}
+function openMov(t,id){
+  mvMode=t;mvSel=null;$('mvT').textContent=t==='s'?'Gerir saída':'Gerir entrada';
+  $('mvSaida').style.display=t==='s'?'block':'none';$('mvEnt').style.display=t==='e'?'block':'none';
+  ['mvQ','mvD','mvF'].forEach(clearPk);['mvN','mvM','mvR','mvL','mvG','mvC'].forEach(i=>$(i).value='');$('mvS').textContent='';
+  if(id){const p=S.p.find(x=>x.id===id);setPk('mvQ',id,p.n);mvSel=id;mvInfo()}
+  openM('mMov');$(id?'mvN':'mvQ').focus();
+}
+function doMov(){
+  const p=S.p.find(x=>x.id===mvSel),n=+$('mvN').value;
+  if(!p)return toast('Pesquise e escolha um produto da lista.');
+  if(!(n>0))return toast('Indique uma quantidade positiva.');
+  const ant=p.q;
+  if(mvMode==='s'){
+    if(n>p.q)return toast('A saída não pode ser maior que o stock disponível ('+p.q+').');
+    p.q-=n;hist(p,'Saída',n,{motivo:$('mvM').value,dest:val('mvD'),sol:$('mvR').value});
+  }else{
+    p.q+=n;if($('mvC').value)p.cu=+$('mvC').value;if(val('mvF'))p.f=val('mvF');if($('mvL').value)p.lt=$('mvL').value;
+    hist(p,'Entrada',n,{motivo:'Nota/guia: '+($('mvG').value||'—')});
+  }
+  p.qa=ant;save();closeM('mMov');render();
+  const low=mvMode==='s'&&p.q<=p.sm?`<p class="rd">Aviso: stock abaixo do mínimo (${p.sm}).</p>`:'';
+  info(`<button class="x" onclick="closeM('mInfo')" aria-label="Fechar">×</button><h2>${mvMode==='s'?'Saída registada':'Adicionado com sucesso'}</h2><p>${esc(p.n)}</p><p>Stock anterior: <b>${ant}</b><br>${mvMode==='s'?'Retirado':'Adicionado'}: <b>${n}</b><br>Stock atual: <b>${p.q}</b></p>${low}<div class="acts"><button class="btn p" onclick="closeM('mInfo')">Fechar</button></div>`);
+}
+
+/* ---------- ação ---------- */
+function acao(id){
+  info(`<h2>Ação</h2><button class="btn li" onclick="detalhe(${id})">Ver detalhe</button><button class="btn li" onclick="historico(${id})">Histórico</button><button class="btn li" onclick="closeM('mInfo');openMov('s',${id})">Gerir saída</button><button class="btn li" onclick="closeM('mInfo');openMov('e',${id})">Gerir entrada</button><button class="btn li" onclick="closeM('mInfo');openForm(S.p.find(p=>p.id===${id}))">Editar</button><button class="btn li" onclick="vitrine(${id})">Enviar / retirar da vitrine</button><button class="btn li d" onclick="eliminar(${id})">Eliminar</button><div class="acts"><button class="btn" onclick="closeM('mInfo')">Fechar</button></div>`);
+}
+const volta=id=>`<div class="acts"><button class="btn" onclick="acao(${id})">Voltar</button></div>`;
+function detalhe(id){
+  const p=S.p.find(x=>x.id===id),rows=[['Nome',p.n],['Referência',p.ref],['Categoria',p.c+' › '+p.sc],['Código de barras',p.cb],['Lote',p.lt],['Validade',fmtD(p.vd)],['Fornecedor',p.f],['Localização',`Corredor ${p.co||'—'}, prateleira ${p.pr||'—'}`],['Quantidade',p.q+' '+p.um],['Stock mínimo',p.sm],['Custo',kz(p.cu)],['Preço de venda',kz(p.pv)],['Preço final',kz(final(p))],['Estado',estado(p)],['Vitrine',p.pub?'Publicado':'Não publicado']];
+  info(`<h2>${esc(p.n)}</h2>${p.im?`<img src="${p.im}" style="max-width:120px;border-radius:8px" alt="">`:''}${rows.map(([a,b])=>`<div class="hl"><span class="hint">${a}:</span> ${esc(b)||'—'}</div>`).join('')}${volta(id)}`);
+}
+function historico(id,tipo=''){
+  const p=S.p.find(x=>x.id===id),h=S.h.filter(x=>x.pid===id&&(!tipo||x.tipo===tipo)).reverse();
+  info(`<h2>Histórico — ${esc(p.n)}</h2><select onchange="historico(${id},this.value)"><option value="">Todos os tipos</option>${['Cadastro inicial','Entrada','Saída','Edição'].map(t=>`<option ${t===tipo?'selected':''}>${t}</option>`).join('')}</select>${h.map(x=>`<div class="hl"><b>${x.tipo}</b>${x.qtd?' · '+x.qtd:''} · ${x.data}${x.us?' · por <b>'+esc(x.us)+'</b>':''}<br><span class="hint">${esc([x.motivo,x.dest&&'Destino: '+x.dest,x.sol&&'Solicitante: '+x.sol].filter(Boolean).join(' · '))}</span></div>`).join('')||'<p class="hint">Sem movimentos.</p>'}${volta(id)}`);
+}
+function vitrine(id){
+  const p=S.p.find(x=>x.id===id);
+  if(!p.pub){const m=[];if(!p.im)m.push('imagem');if(!(p.pv>0))m.push('preço de venda');if(!(p.q>0))m.push('stock maior que 0');if(m.length)return toast('Para publicar falta: '+m.join(', ')+'.')}
+  p.pub=!p.pub;save();closeM('mInfo');render();toast(p.pub?'Produto publicado na vitrine.':'Produto retirado da vitrine.');
+}
+function eliminar(id){
+  const p=S.p.find(x=>x.id===id),temH=S.h.some(x=>x.pid===id&&x.tipo!=='Cadastro inicial');
+  info(`<h2>Eliminar produto</h2><p>Eliminar “${esc(p.n)}”? Esta ação não pode ser desfeita.</p>${temH?'<p class="hint">Este produto tem movimentos. Pode inativá-lo em vez de apagar.</p>':''}<div class="acts"><button class="btn" onclick="closeM('mInfo')">Cancelar</button>${temH?`<button class="btn" onclick="inativar(${id})">Inativar</button>`:''}<button class="btn d" onclick="apagar(${id})">Eliminar</button></div>`);
+}
+function inativar(id){const p=S.p.find(x=>x.id===id);p.ativo=false;p.pub=false;hist(p,'Edição',0,{motivo:'Inativado'});save();closeM('mInfo');render();toast('Produto inativado.')}
+function apagar(id){S.p=S.p.filter(p=>p.id!==id);S.h=S.h.filter(h=>h.pid!==id);save();closeM('mInfo');render();toast('Produto eliminado.')}
+
+/* ---------- relatório (1239) ---------- */
+const RIDS=['rq','rc','rsc','rf','re','rmin','rmax','rpr','rd1','rd2'];
+function openRel(){
+  const u=k=>[...new Set(S.p.map(p=>p[k]).filter(Boolean))].sort();
+  const fill=(id,arr,first)=>$(id).innerHTML=`<option value="">${first}</option>`+arr.map(a=>`<option>${esc(a)}</option>`).join('');
+  fill('rc',u('c'),'Todas');fill('rsc',u('sc'),'Todas');fill('rf',u('f'),'Todos');
+  RIDS.forEach(i=>$(i).value='');RF=[];$('rN').textContent='';openM('mRel');
+}
+const curF=()=>Object.fromEntries(RIDS.map(i=>[i,$(i).value.trim()]));
+const emptyF=x=>!Object.values(x).some(Boolean);
+function nomeF(x,i){
+  const cat=[x.rc,x.rsc].filter(Boolean).join(' > ');
+  const val=x.rmin||x.rmax?kz(x.rmin||0).replace(' Kz','')+' a '+(x.rmax?kz(x.rmax):'sem limite'):'';
+  const per=x.rd1||x.rd2?(x.rd1?fmtD(x.rd1):'início')+' a '+(x.rd2?fmtD(x.rd2):'hoje'):'';
+  return`Filtro ${i}: `+([x.rq&&'“'+x.rq+'”',cat,x.rf,x.re,val,x.rpr==='c'?'Com preço':x.rpr==='s'?'Sem preço':'',per].filter(Boolean).join(', ')||'Todos os produtos');
+}
+function outroFiltro(){const x=curF();if(emptyF(x))return toast('Escolha pelo menos um filtro.');RF.push(x);RIDS.forEach(i=>$(i).value='');$('rN').textContent=RF.length+' filtro(s) adicionado(s).'}
+function descartarRel(){RF=[];RIDS.forEach(i=>$(i).value='');$('rN').textContent='';closeM('mRel')}
+function cadTs(p){const h=S.h.find(x=>x.pid===p.id&&x.tipo==='Cadastro inicial');return h?h.ts:0}
+function finalizarRel(){
+  const x0=curF();if(!emptyF(x0))RF.push(x0);
+  if(!RF.length)return toast('Escolha pelo menos um filtro.');
+  const now=new Date(),h=now.toLocaleDateString('pt-PT'),hh=now.toLocaleString('pt-PT');
+  let gq=0,gv=0,html='';
+  RF.forEach((x,i)=>{
+    const q=norm(x.rq),t1=x.rd1?new Date(x.rd1+'T00:00:00').getTime():0,t2=x.rd2?new Date(x.rd2+'T23:59:59').getTime():0;
+    const ps=S.p.filter(p=>(!q||norm(p.n+' '+p.co+' '+p.pr).includes(q))&&(!x.rc||p.c===x.rc)&&(!x.rsc||p.sc===x.rsc)&&(!x.rf||p.f===x.rf)&&(!x.re||estado(p)===x.re)&&(x.rmin===''||final(p)>=+x.rmin)&&(x.rmax===''||final(p)<=+x.rmax)&&(!x.rpr||(x.rpr==='c')===(+p.pv>0))&&(!t1||cadTs(p)>=t1)&&(!t2||cadTs(p)<=t2));
+    const sq=ps.reduce((s,p)=>s+p.q,0),sv=ps.reduce((s,p)=>s+p.q*final(p),0);gq+=sq;gv+=sv;
+    const rows=ps.map(p=>`<tr><td>${p.ref}</td><td>${esc(p.n)}</td><td>${esc(p.c)} › ${esc(p.sc)}</td><td>${esc(p.f)}</td><td>${esc([p.co,p.pr].filter(Boolean).join('/'))||'—'}</td><td>${estado(p)}</td><td class="r">${p.q} ${p.um}</td><td class="r">${kz(final(p))}</td><td class="r">${kz(p.q*final(p))}</td></tr>`).join('')||'<tr><td colspan="9">Nenhum produto neste filtro.</td></tr>';
+    html+=`<h3>${esc(nomeF(x,i+1))}</h3><table><thead><tr><th>Ref.</th><th>Nome</th><th>Categoria</th><th>Fornecedor</th><th>Local</th><th>Estado</th><th>Stock</th><th>Preço</th><th>Valor em stock</th></tr></thead><tbody>${rows}<tr class="s"><td colspan="6">Subtotal (${ps.length} produtos)</td><td class="r">${sq}</td><td></td><td class="r">${kz(sv)}</td></tr></tbody></table>`;
+  });
+  const w=window.open('','_blank');
+  if(!w)return toast('O navegador bloqueou a janela. Permita pop-ups e tente de novo.');
+  w.document.write(`<!DOCTYPE html><html lang="pt"><head><meta charset="utf-8"><title>Relatório de Produtos ${h.replace(/\//g,'-')}</title><style>body{font:12px "Segoe UI",Arial,sans-serif;color:#111;margin:24px}h1{font-size:18px;margin:0}h3{margin:20px 0 6px;font-size:13px}p{margin:2px 0 12px;color:#555}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #ccc;padding:5px 6px;text-align:left}th{background:#eef3f0}.r{text-align:right}.s td{font-weight:700;border-top:2px solid #333}@media print{@page{size:A4 landscape;margin:12mm}}</style></head><body><h1>Relatório de Produtos do dia ${h}</h1><p>Emitido em ${hh}</p>${html}<h3 style="text-align:right">Total geral: ${gq} unidades · ${kz(gv)}</h3><script>onload=()=>setTimeout(()=>print(),300)<\/script></body></html>`);
+  w.document.close();RF=[];closeM('mRel');
+}
+
+/* ---------- exportar, cópia, tema ---------- */
+function dl(name,txt,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type}));a.download=name;a.click()}
+function exportCSV(){
+  const r=filtered(),h=['ID','Nome','Categoria','Subcategoria','Referência','Fornecedor','Quantidade','Custo','Preço final','Estado','Validade'];
+  dl('produtos.csv','\ufeff'+[h,...r.map(p=>[p.id,p.n,p.c,p.sc,p.ref,p.f,p.q,p.cu,final(p),estado(p),fmtD(p.vd)])].map(l=>l.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\n'),'text/csv');
+}
+function backup(){dl('produtos-backup-'+today()+'.json',JSON.stringify(S),'application/json')}
+function restore(i){const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.p||!d.h)throw 0;if(confirm('Substituir os dados atuais pela cópia?')){S=d;save();render();toast('Dados importados.')}}catch(e){toast('Ficheiro inválido.')}i.value=''};r.readAsText(f)}
+function toggleTheme(){const d=document.documentElement,t=d.dataset.t==='dark'?'light':'dark';d.dataset.t=t;localStorage.setItem('tema',t)}
+document.documentElement.dataset.t=localStorage.getItem('tema')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.ov.on').forEach(o=>o.id==='mForm'?cancelForm():o.id==='mKC'?cancelCat():o.id==='mKS'?cancelSub():closeM(o.id))});
+
+/* =====================================================================
+   CATEGORIAS (integradas no módulo Produtos). Todas as funções e ids
+   têm o prefixo "k" para não colidirem com o resto da página.
+   ===================================================================== */
+const DK='departamentos_v1';
+const kLoad=()=>({d:[],a:[],c:[],sc:[],...JSON.parse(localStorage.getItem(DK)||'{}')});
+let D=kLoad(),kOpen=new Set(),eC=null,eS=null,vista_='p';
+const kNid=a=>a.reduce((m,x)=>Math.max(m,x.id),0)+1;
+const kOp=id=>$(id).classList.add('on'),kCl=id=>$(id).classList.remove('on'),kInfo=h=>{$('kinfo').innerHTML=h;kOp('mKI')};
+const kOn=x=>x.ativo!==false;
+/* qualquer alteração relê os dados antes, para não apagar o que o Departamentos tenha guardado */
+function kMut(fn){D=kLoad();fn();localStorage.setItem(DK,JSON.stringify(D));kRender()}
+/* os produtos são os mesmos da lista (S): alterar aqui grava e atualiza também a lista */
+const kNP=c=>S.p.filter(p=>p.c===c.n).length;
+const kNPS=(s,c)=>S.p.filter(p=>p.c===c.n&&p.sc===s.n).length;
+const kSubs=c=>D.sc.filter(s=>s.cid===c.id);
+function kTouchProd(fn){S=loadS();fn(S);save();render()}
+
+/* ---------- alternar entre Produtos e Categorias ---------- */
+function vista(v){
+  vista_=v;
+  $('vProd').hidden=v!=='p';$('vCat').hidden=v!=='c';
+  if(v==='c')kRender();else render();
+}
+
+function kRender(){
+  D=kLoad();const q=norm($('kfq').value),pr=S.p;
+  const r=D.c.filter(c=>{const ss=kSubs(c);return(!q||norm(c.n).includes(q)||ss.some(s=>norm(s.n).includes(q)))&&(!$('kfe').value||($('kfe').value==='Ativo')===kOn(c))&&(!$('kfz').checked||kNP(c)===0)}).sort((a,b)=>norm(a.n).localeCompare(norm(b.n),'pt'));
+  $('ktb').innerHTML=r.map(c=>{
+    const ss=kSubs(c),isOpen=kOpen.has(c.id)||(q&&ss.some(s=>norm(s.n).includes(q)));
+    return`<tr><td>${c.id}</td><td><button class="btn s" onclick="kTg(${c.id})" aria-label="Mostrar subcategorias">${isOpen?'▾':'▸'}</button> <span class="dot" style="background:${esc(c.cor||'#0f6b57')}"></span><b>${esc(c.n)}</b></td><td>${esc(c.desc)||'—'}</td><td>${ss.length}</td><td>${kNP(c)}</td><td><span class="tg ${kOn(c)?'':'r'}">${kOn(c)?'Ativo':'Inativo'}</span></td><td><button class="btn s" onclick="kAcao(${c.id})">Ação</button></td></tr>`
+    +(isOpen?ss.map(s=>`<tr class="sub"><td></td><td>↳ ${esc(s.n)}</td><td></td><td></td><td>${kNPS(s,c)}</td><td><span class="tg ${kOn(s)?'':'r'}">${kOn(s)?'Ativo':'Inativo'}</span></td><td><button class="btn s" onclick="kAcaoS(${s.id})">Ação</button></td></tr>`).join('')||`<tr class="sub"><td></td><td colspan="6" class="hint">Sem subcategorias.</td></tr>`:'');
+  }).join('')||'<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--mu)">Nenhuma categoria. Use Menu › Cadastrar categoria ou Menu › Importar categorias dos produtos.</td></tr>';
+  $('kcount').textContent=r.length+' de '+D.c.length+' categorias';
+  const names=new Set(D.c.map(c=>c.n));
+  $('kcards').innerHTML=[[D.c.length,'Categorias'],[D.sc.length,'Subcategorias'],[pr.filter(p=>p.c&&!names.has(p.c)).length,'Produtos com categoria não registada'],[D.c.filter(c=>kNP(c)===0).length,'Categorias sem produtos']].map(([a,b])=>`<div class="card"><b>${a}</b><span>${b}</span></div>`).join('');
+}
+function kTg(id){kOpen.has(id)?kOpen.delete(id):kOpen.add(id);kRender()}
+
+/* categoria */
+function openCat(c){
+  if(vista_!=='c')vista('c');
+  eC=c?c.id:null;$('kcT').textContent=c?'Editar categoria':'Cadastrar categoria';
+  $('kcn').value=c?c.n:'';$('kcd').value=c?c.desc||'':'';$('kcc').value=c?c.cor||'#0f6b57':'#0f6b57';$('kce').value=c&&!kOn(c)?'Inativo':'Ativo';$('kcH').textContent='';$('kcn').classList.remove('err');kOp('mKC');$('kcn').focus();
+}
+$('kcn').addEventListener('input',()=>{$('kcH').textContent=kLoad().c.some(c=>norm(c.n)===norm($('kcn').value)&&c.id!==eC)?'Já existe uma categoria com este nome.':''});
+const kDirtyC=()=>$('kcn').value||$('kcd').value;
+function cancelCat(){if(!eC&&kDirtyC()&&!confirm('Há dados preenchidos. Descartar e fechar?'))return;kCl('mKC')}
+function saveCat(){
+  const n=$('kcn').value.trim();D=kLoad();
+  if(!n||D.c.some(c=>norm(c.n)===norm(n)&&c.id!==eC)){$('kcn').classList.add('err');return toast(n?'Esta categoria já existe.':'Indique o nome da categoria.')}
+  const o={n,desc:$('kcd').value.trim(),cor:$('kcc').value,ativo:$('kce').value==='Ativo'};
+  if(eC){const c=D.c.find(x=>x.id===eC);if(c.n!==n){const old=c.n;kTouchProd(X=>X.p.forEach(p=>{if(p.c===old)p.c=n}))}kMut(()=>Object.assign(D.c.find(x=>x.id===eC),o));toast('Categoria atualizada.');kCl('mKC');return}
+  kMut(()=>D.c.push({id:kNid(D.c),ts:Date.now(),...o}));toast('Categoria guardada com sucesso');
+  $('kcn').value=$('kcd').value='';$('kcc').value='#0f6b57';$('kcn').focus();
+}
+/* subcategoria */
+function openSub(s,cid){
+  if(vista_!=='c')vista('c');
+  D=kLoad();eS=s?s.id:null;$('ksT').textContent=s?'Editar subcategoria':'Cadastrar subcategoria';
+  $('ksc').innerHTML='<option value="">Escolha a categoria</option>'+D.c.map(c=>`<option value="${c.id}">${esc(c.n)}</option>`).join('');
+  $('ksc').value=s?s.cid:(cid||'');$('ksn').value=s?s.n:'';$('kse').value=s&&!kOn(s)?'Inativo':'Ativo';$('ksH').textContent='';kOp('mKS');$('ksn').focus();
+}
+$('ksn').addEventListener('input',()=>{$('ksH').textContent=kLoad().sc.some(s=>s.cid==$('ksc').value&&norm(s.n)===norm($('ksn').value)&&s.id!==eS)?'Já existe esta subcategoria nesta categoria.':''});
+function cancelSub(){if(!eS&&$('ksn').value&&!confirm('Há dados preenchidos. Descartar e fechar?'))return;kCl('mKS')}
+function saveSub(){
+  D=kLoad();const cid=+$('ksc').value,n=$('ksn').value.trim();
+  if(!cid||!n)return toast('Escolha a categoria e escreva o nome.');
+  if(D.sc.some(s=>s.cid===cid&&norm(s.n)===norm(n)&&s.id!==eS))return toast('Esta subcategoria já existe nesta categoria.');
+  const act=$('kse').value==='Ativo';
+  if(eS){const s=D.sc.find(x=>x.id===eS),c=D.c.find(x=>x.id===s.cid);
+    if(s.n!==n||s.cid!==cid){const nc=D.c.find(x=>x.id===cid),oc=c.n,os=s.n;kTouchProd(X=>X.p.forEach(p=>{if(p.c===oc&&p.sc===os){p.sc=n;p.c=nc.n}}))}
+    kMut(()=>Object.assign(D.sc.find(x=>x.id===eS),{cid,n,ativo:act}));toast('Subcategoria atualizada.');kCl('mKS');return}
+  kMut(()=>D.sc.push({id:kNid(D.sc),cid,n,ativo:act}));kOpen.add(cid);kRender();toast('Guardada com sucesso');$('ksn').value='';$('ksn').focus();
+}
+
+/* ações */
+function kAcao(id){
+  const c=D.c.find(x=>x.id===id);
+  kInfo(`<h2>${esc(c.n)}</h2><button class="btn li" onclick="kDetalhe(${id})">Ver detalhe e produtos</button><button class="btn li" onclick="kCl('mKI');openSub(null,${id})">Adicionar subcategoria</button><button class="btn li" onclick="kCl('mKI');openCat(D.c.find(x=>x.id===${id}))">Editar</button><button class="btn li" onclick="kMesclar(${id})">Mesclar com outra categoria</button><button class="btn li" onclick="kTgA('c',${id})">${kOn(c)?'Inativar':'Ativar'}</button><button class="btn li d" onclick="kDelC(${id})">Eliminar</button><div class="acts"><button class="btn" onclick="kCl('mKI')">Fechar</button></div>`);
+}
+const kBk=id=>`<div class="acts"><button class="btn" onclick="kAcao(${id})">Voltar</button></div>`;
+function kDetalhe(id){
+  const c=D.c.find(x=>x.id===id),ps=S.p.filter(p=>p.c===c.n);
+  kInfo(`<h2><span class="dot" style="background:${esc(c.cor)}"></span>${esc(c.n)}</h2><p>${esc(c.desc)||'<span class="hint">Sem descrição.</span>'}</p><p class="hint">${kSubs(c).length} subcategorias · ${ps.length} produtos</p>${ps.slice(0,50).map(p=>`<div class="hl">${esc(p.n)} <span class="hint">· ${esc(p.sc)} · stock ${p.q} ${esc(p.um)}</span></div>`).join('')||'<p class="hint">Sem produtos.</p>'}${kBk(id)}`);
+}
+function kTgA(t,id){kMut(()=>{const x=(t==='c'?D.c:D.sc).find(y=>y.id===id);x.ativo=!kOn(x)});kCl('mKI');toast('Estado alterado. Inativas deixam de ser sugeridas no cadastro de produto.')}
+function kApagaC(id){kMut(()=>D.c=D.c.filter(x=>x.id!==id));kCl('mKI');toast('Categoria eliminada.')}
+function kApagaS(id){kMut(()=>D.sc=D.sc.filter(x=>x.id!==id));kCl('mKI');toast('Subcategoria eliminada.')}
+function kDelC(id){
+  const c=D.c.find(x=>x.id===id),bl=kSubs(c).length||kNP(c);
+  kInfo(bl?`<h2>Não é possível eliminar</h2><p>A categoria tem subcategorias ou produtos. Pode inativá-la ou mesclá-la com outra.</p><div class="acts"><button class="btn" onclick="kCl('mKI')">Fechar</button><button class="btn p" onclick="kTgA('c',${id})">Inativar</button></div>`:`<h2>Eliminar categoria</h2><p>Eliminar “${esc(c.n)}”?</p><div class="acts"><button class="btn" onclick="kCl('mKI')">Cancelar</button><button class="btn d" onclick="kApagaC(${id})">Eliminar</button></div>`);
+}
+function kMesclar(id){
+  const c=D.c.find(x=>x.id===id);
+  kInfo(`<h2>Mesclar “${esc(c.n)}”</h2><p class="hint">Todas as subcategorias e produtos passam para a categoria escolhida e “${esc(c.n)}” é eliminada.</p><select id="kmt">${D.c.filter(x=>x.id!==id).map(x=>`<option value="${x.id}">${esc(x.n)}</option>`).join('')}</select><div class="acts"><button class="btn" onclick="kAcao(${id})">Voltar</button><button class="btn p" onclick="kDoMesc(${id})">Mesclar</button></div>`);
+}
+function kDoMesc(id){
+  const t=+$('kmt').value;if(!t)return toast('Não há outra categoria.');
+  D=kLoad();const a=D.c.find(x=>x.id===id),b=D.c.find(x=>x.id===t),an=a.n,bn=b.n;
+  kTouchProd(X=>X.p.forEach(p=>{if(p.c===an)p.c=bn}));
+  kMut(()=>{D.sc.forEach(s=>{if(s.cid===id){if(D.sc.some(y=>y.cid===t&&norm(y.n)===norm(s.n)&&y!==s))s._del=1;else s.cid=t}});D.sc=D.sc.filter(s=>!s._del);D.c=D.c.filter(x=>x.id!==id)});
+  kCl('mKI');toast('Categorias mescladas.');
+}
+function kAcaoS(id){
+  const s=D.sc.find(x=>x.id===id),c=D.c.find(x=>x.id===s.cid);
+  kInfo(`<h2>${esc(c.n)} › ${esc(s.n)}</h2><button class="btn li" onclick="kCl('mKI');openSub(D.sc.find(x=>x.id===${id}))">Editar ou mover para outra categoria</button><button class="btn li" onclick="kTgA('s',${id})">${kOn(s)?'Inativar':'Ativar'}</button><button class="btn li d" onclick="kDelS(${id})">Eliminar</button><div class="acts"><button class="btn" onclick="kCl('mKI')">Fechar</button></div>`);
+}
+function kDelS(id){
+  const s=D.sc.find(x=>x.id===id),c=D.c.find(x=>x.id===s.cid);
+  kInfo(kNPS(s,c)?`<h2>Não é possível eliminar</h2><p>Há produtos nesta subcategoria. Inative-a ou mova-a.</p><div class="acts"><button class="btn" onclick="kCl('mKI')">Fechar</button><button class="btn p" onclick="kTgA('s',${id})">Inativar</button></div>`:`<h2>Eliminar subcategoria</h2><p>Eliminar “${esc(s.n)}”?</p><div class="acts"><button class="btn" onclick="kCl('mKI')">Cancelar</button><button class="btn d" onclick="kApagaS(${id})">Eliminar</button></div>`);
+}
+
+/* importar e exportar */
+const CORES=['#0f6b57','#2f6fb3','#b8742a','#8e4a9e','#c0392b','#5a8f29','#c2a000','#3d7f8c'];
+function kAddPair(c,s){
+  let cat=D.c.find(x=>norm(x.n)===norm(c)),n=0;
+  if(!cat){cat={id:kNid(D.c),n:c.trim(),desc:'',cor:CORES[D.c.length%CORES.length],ativo:true,ts:Date.now()};D.c.push(cat);n++}
+  if(s&&!D.sc.some(x=>x.cid===cat.id&&norm(x.n)===norm(s))){D.sc.push({id:kNid(D.sc),cid:cat.id,n:s.trim(),ativo:true});n++}
+  return n;
+}
+function kSync(){D=kLoad();let n=0;S.p.forEach(p=>{if(p.c)n+=kAddPair(p.c,p.sc)});localStorage.setItem(DK,JSON.stringify(D));if(vista_==='c')kRender();toast(n?n+' registo(s) importado(s) dos produtos.':'Nada novo para importar.')}
+function kExportCSV(){
+  D=kLoad();const rows=[['Categoria','Subcategoria','Produtos']];D.c.forEach(c=>{rows.push([c.n,'',kNP(c)]);kSubs(c).forEach(s=>rows.push([c.n,s.n,kNPS(s,c)]))});
+  dl('categorias.csv','\ufeff'+rows.map(l=>l.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\n'),'text/csv');
+}
+function kPdf(){
+  D=kLoad();const h=new Date().toLocaleDateString('pt-PT');
+  const w=window.open('','_blank');if(!w)return toast('O navegador bloqueou a janela. Permita pop-ups e tente de novo.');
+  w.document.write(`<!DOCTYPE html><html lang="pt"><head><meta charset="utf-8"><title>Categorias ${h.replace(/\//g,'-')}</title><style>body{font:12px "Segoe UI",Arial,sans-serif;margin:24px;color:#111}h1{font-size:18px}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #ccc;padding:5px 6px;text-align:left}th{background:#eef3f0}.s td{padding-left:24px;color:#444}</style></head><body><h1>Categorias e subcategorias — ${h}</h1><table><thead><tr><th>Nome</th><th>Estado</th><th>Produtos</th></tr></thead><tbody>${D.c.map(c=>`<tr><td><b>${esc(c.n)}</b></td><td>${kOn(c)?'Ativo':'Inativo'}</td><td>${kNP(c)}</td></tr>`+kSubs(c).map(s=>`<tr class="s"><td>↳ ${esc(s.n)}</td><td>${kOn(s)?'Ativo':'Inativo'}</td><td>${kNPS(s,c)}</td></tr>`).join('')).join('')}</tbody></table><script>onload=()=>setTimeout(()=>print(),300)<\/script></body></html>`);w.document.close();
+}
+window.addEventListener('storage',e=>{if(e.key===DK&&vista_==='c')kRender()});
+
+subState();render();
+const low=S.p.filter(p=>['Stock baixo','Esgotado'].includes(estado(p))||validade(p)).length;
+if(low)setTimeout(()=>toast(low+' produto(s) com stock baixo, esgotados ou com validade a terminar.'),400);
+</script>
+</body>
+</html>
